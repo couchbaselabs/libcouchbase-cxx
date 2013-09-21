@@ -15,12 +15,23 @@ public:
         assert(err == LCB_SUCCESS);
         cout << "Got response for key: " << resp->getKey() << endl;
         cout << "   " << resp->getValue() << endl;
+
+        DeleteCommand dcmd;
+        dcmd.initFromResponse(*resp);
+        ctx->conn->schedule(dcmd, ctx);
     }
 
     void onStore(OperationContext *ctx, const StoreResponse *resp, lcb_error_t err)
     {
         assert(err == LCB_SUCCESS);
         cout << "Stored key: " << resp->getKey() << endl;
+        cout << "   CAS: " << std::hex << resp->getCas() << endl;
+    }
+
+    void onDelete(OperationContext *ctx, const DeleteResponse *resp, lcb_error_t err)
+    {
+        assert(err == LCB_SUCCESS);
+        cout << "Deleted key: " << resp->getKey() << endl;
         cout << "   CAS: " << std::hex << resp->getCas() << endl;
     }
 };
@@ -37,22 +48,18 @@ int main(void)
     assert((status = conn.connect()) == LCB_SUCCESS);
     conn.wait();
 
+    ctx.handler = &handler;
+    ctx.conn = &conn;
+
     std::string key = "I am a key";
     std::string value = "I am a value";
 
-    StoreCommand scmd;
-    scmd.setKey(key);
-    scmd.setValue(value);
-    scmd.setMode(LCB_SET);
-
-    ctx.handler = &handler;
-    status = conn.scheduleStore(&scmd, &ctx);
+    status = conn.schedule(StoreCommand(key, value), &ctx);
     assert(status == LCB_SUCCESS);
 
-    GetCommand gcmd;
-    gcmd.setKey(key);
-    status = conn.scheduleGet(&gcmd, &ctx);
+    status = conn.schedule(GetCommand(key), &ctx);
     assert(status == LCB_SUCCESS);
+
     conn.wait();
 
     return 0;

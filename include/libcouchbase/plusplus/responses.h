@@ -14,11 +14,23 @@ using std::string;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-// This is the base class for all responses. While the actual response clases
-// use templates, they still all inherit from this
+/**
+ * This is the base response class. It is passed as a pointer to the callbacks
+ * in the ResponseHandler class. This object should not be copied around
+ * and its referrent is valid only throughout the scope of the callback.
+ */
 class ResponseBase {
 public:
+    /**
+     * Get the key for the item.
+     * @param n a pointer that will set to the size of the key, in bytes
+     * @return a pointer to the key
+     */
     virtual const void *getKey(lcb_size_t *n) const = 0;
+
+    /**
+     * Convenience method to get the key for the item as a C++ string
+     */
     string getKey() {
         lcb_size_t n;
         const char *tmp = (const char *)getKey(&n);
@@ -29,6 +41,7 @@ public:
 
         return string(tmp, n);
     }
+
     virtual ~ResponseBase() { }
 };
 
@@ -41,7 +54,8 @@ public:
     virtual lcb_cas_t getCas() const = 0;
 };
 
-template <typename T, class I> class Response : public I {
+template <typename T, class I>
+class Response : public I {
 public:
     typedef T LcbInternalResponse;
 
@@ -67,8 +81,15 @@ public:
 
     virtual ~Response() {}
 
-    // Converts the libcouchbase-allocated response to one provided by the
-    // C++ binding
+    /**
+     * Converts the internal pointer to the libcouchbase response to one
+     * provided inside the stack. Note that this only ensures the structure
+     * itself does not go out of scope. It may be required to also copy the
+     * contents (i.e. any references to pointers inside the structure) in
+     * order that it may be used outside the callback
+     *
+     * @param newresp a pointer to the new response structure.
+     */
     void transplantInner(const T *newresp) {
         resp = newresp;
     }
@@ -99,12 +120,12 @@ public:
 /// Operation Results                                                        ///
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-class GetResponse : public CasResponse<LcbGetResponse>
+class GetResponse : public CasResponse<C_GetResp>
 {
 
 public:
     friend class SyncGetResponse;
-    GetResponse(const LcbGetResponse *p) : CasResponse(p) {
+    GetResponse(const C_GetResp *p) : CasResponse(p) {
     }
 
     lcb_uint32_t getFlags() const {
@@ -127,30 +148,35 @@ public:
     }
 };
 
-class TouchResponse : public CasResponse<LcbTouchResponse> {
+class TouchResponse : public CasResponse<C_TouchResp> {
 public:
-    TouchResponse(const LcbTouchResponse *p): CasResponse<LcbTouchResponse>(p) { }
+    TouchResponse(const C_TouchResp *p):
+        CasResponse<C_TouchResp>(p) { }
 
 };
 
-class StoreResponse : public CasResponse<LcbStoreResponse> {
+class StoreResponse : public CasResponse<C_StoreResp> {
 public:
-    StoreResponse(const LcbStoreResponse *p): CasResponse<LcbStoreResponse>(p) { }
+    StoreResponse(const C_StoreResp *p):
+        CasResponse<C_StoreResp>(p) { }
 };
 
-class DeleteResponse : public CasResponse<LcbDeleteResponse> {
+class DeleteResponse : public CasResponse<C_RemoveResp> {
 public:
-    DeleteResponse(const LcbDeleteResponse *p): CasResponse<LcbDeleteResponse>(p) { }
+    DeleteResponse(const C_RemoveResp *p):
+        CasResponse<C_RemoveResp>(p) { }
 };
 
-class UnlockResponse : public Response<LcbUnlockResponse, ResponseBase> {
+class UnlockResponse : public Response<C_UnlockResp, ResponseBase> {
 public:
-    UnlockResponse(const LcbUnlockResponse *p): Response<LcbUnlockResponse,ResponseBase>(p) {}
+    UnlockResponse(const C_UnlockResp *p):
+        Response<C_UnlockResp,ResponseBase>(p) {}
 };
 
-class ArithmeticResponse : public CasResponse<LcbArithmeticResponse> {
+class ArithmeticResponse : public CasResponse<C_ArithResp> {
 public:
-    ArithmeticResponse(const LcbArithmeticResponse *p) : CasResponse<LcbArithmeticResponse>(p) { }
+    ArithmeticResponse(const C_ArithResp *p) :
+        CasResponse<C_ArithResp>(p) { }
     lcb_uint64_t getValue() const { return getRawResponse()->v.v0.value; }
 };
 
@@ -162,8 +188,14 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class ResponseHandler;
+
+/**
+ * This structure may be subclassed by the user to contain other data related
+ * to the command. It is passed as the first argument to each of the callbacks.
+ */
 struct OperationContext {
     ResponseHandler *handler;
+    Connection *conn;
 };
 
 // You should subclass this and define your own callbacks..

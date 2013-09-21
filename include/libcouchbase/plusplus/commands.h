@@ -2,6 +2,7 @@
 #define LCB_CPP_COMMANDS_H
 
 #include "common.h"
+#include "responses.h"
 #include <cstring>
 #include <string>
 
@@ -9,20 +10,57 @@ namespace Couchbase {
 
 class Command {
 public:
+    // Returns the pointer to the underlying libcouchbase C command
+    // structure
     virtual const void *getLcbPointer() const = 0;
 };
 
 class KeyCommand : public Command {
 public:
+    /**
+     * Set the key for the operation
+     * @param k the key
+     * @param n the size of the key in bytes.
+     *
+     * Note that the key is not copied into the library and the memory
+     * pointed to by 'key' must remain valid until the command is scheduled
+     */
     virtual void setKey(const void *k, size_t n) = 0;
+    /**
+     * Set the hash key for the operation. By default this is the key itself
+     * but may be modified to enforce mapping logically related keys to the
+     * same server
+     * @param hk the hashkey
+     * @param nhk the size of the hashkey in bytes
+     */
     virtual void setHashKey(const void *hk, size_t nhk) = 0;
+
+    /**
+     * Get the key for the command. This simply returns the value provided
+     * for 'setKey'
+     * @param n a pointer to be set to the size of the key
+     * @return the pointer to the key
+     */
     virtual const void *getKey(size_t *n = NULL) const = 0;
+
+    /**
+     * Get the hashkey, similar to 'getKey'
+     */
     virtual const void *getHashKey(size_t *n = NULL) const = 0;
 
+    /**
+     * Convenience method to set the key
+     * @param k a NUL-terminated string
+     */
     void setKey(const char *k) {
         setKey(k, strlen(k));
     }
 
+    /**
+     * Convenience method to set the key
+     * @param k a C++ string. Note that the string object must not be
+     * modified or deleted until the operation is scheduled
+     */
     void setKey(const std::string &k) {
         setKey((const void *)k.c_str(), (size_t)k.size());
     }
@@ -66,6 +104,13 @@ public:
     }
 
     const void *getLcbPointer() const { return &cmd; }
+
+    void initFromResponse(const ResponseBase& r) {
+        size_t n;
+        const void *k = r.getKey(&n);
+        setKey(k, n);
+    }
+
 protected:
     T cmd;
 };
@@ -82,6 +127,15 @@ public:
     void setCas(lcb_cas_t cas) {
         this->cmd.v.v0.cas = cas;
     }
+
+    void setCas(const CasResponseBase& other) {
+        setCas(other.getCas());
+    }
+
+    void initFromResponse(const CasResponseBase& r) {
+        KeyCommandTmpl_v0<T>::initFromResponse(r);
+        setCas(r.getCas());
+    }
 };
 
 template <typename T> class KeyCasExpCommand_v0 : public KeyCommandTmpl_v0<T> {
@@ -94,8 +148,14 @@ public:
     }
 };
 
-class GetCommand : public KeyExpCommand_v0<LcbGetCommand> {
+class GetCommand : public KeyExpCommand_v0<C_GetCmd> {
 public:
+    GetCommand(const std::string &k) {
+        KeyCommand::setKey(k);
+    }
+
+    GetCommand(){}
+
     void setExpiry(lcb_uint32_t e) {
         this->cmd.v.v0.exptime = e;
     }
@@ -106,10 +166,26 @@ public:
     }
 };
 
-class TouchCommand : public KeyExpCommand_v0<LcbTouchCommand> {};
-
-class StoreCommand : public KeyCasExpCommand_v0<LcbStoreCommand> {
+class TouchCommand : public KeyExpCommand_v0<C_TouchCmd> {
 public:
+    TouchCommand(const std::string &k) {
+        KeyCommand::setKey(k);
+    }
+    TouchCommand(){}
+};
+
+class StoreCommand : public KeyCasExpCommand_v0<C_StoreCmd> {
+public:
+
+    StoreCommand(const std::string &k, const std::string &v,
+                 lcb_storage_t mode = LCB_SET) {
+        KeyCommand::setKey(k);
+        setValue(v);
+        setMode(mode);
+    }
+
+    StoreCommand(){}
+
     void setMode(lcb_storage_t m) {
         cmd.v.v0.operation = m;
     }
@@ -136,8 +212,15 @@ public:
     }
 };
 
-class ArithmeticCommand : public KeyExpCommand_v0<LcbArithmeticCommand> {
+class ArithmeticCommand : public KeyExpCommand_v0<C_ArithCmd> {
 public:
+    ArithmeticCommand(const std::string &k, lcb_int64_t delta) {
+        KeyCommand::setKey(k);
+        setDelta(delta);
+    }
+
+    ArithmeticCommand(){}
+
     void setDelta(lcb_int64_t delta) {
         cmd.v.v0.delta = delta;
     }
@@ -147,16 +230,26 @@ public:
     }
 };
 
-class DeleteCommand : public KeyCasCommand_v0<LcbDeleteCommand> {
+class DeleteCommand : public KeyCasCommand_v0<C_RemoveCmd> {
+public:
+    DeleteCommand(const std::string &k) {
+        KeyCommand::setKey(k);
+    }
+    DeleteCommand(){}
 };
 
-class UnlockCommand : public KeyCasCommand_v0<LcbUnlockCommand> {
+class UnlockCommand : public KeyCasCommand_v0<C_UnlockCmd> {
+public:
+    UnlockCommand(const std::string &k) {
+        KeyCommand::setKey(k);
+    }
+    UnlockCommand(){}
 };
 
-class ObserveCommand : public KeyCommandTmpl_v0<LcbObserveCommand> {
+class ObserveCommand : public KeyCommandTmpl_v0<C_ObserveCmd> {
 };
 
-class DurabilityCommand : public KeyCasCommand_v0<LcbDurabilityCommand> {
+class DurabilityCommand : public KeyCasCommand_v0<C_DurabilityCmd> {
 };
 
 } // namespace

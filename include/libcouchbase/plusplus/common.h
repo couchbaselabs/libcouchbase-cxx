@@ -4,21 +4,21 @@
 #include <libcouchbase/couchbase.h>
 namespace Couchbase {
 
-typedef lcb_get_cmd_t LcbGetCommand;
-typedef lcb_touch_cmd_t LcbTouchCommand;
-typedef lcb_store_cmd_t LcbStoreCommand;
-typedef lcb_remove_cmd_t LcbDeleteCommand;
-typedef lcb_arithmetic_cmd_t LcbArithmeticCommand;
-typedef lcb_unlock_cmd_t LcbUnlockCommand;
-typedef lcb_observe_cmd_t LcbObserveCommand;
-typedef lcb_durability_cmd_t LcbDurabilityCommand;
+typedef lcb_get_cmd_t C_GetCmd;
+typedef lcb_touch_cmd_t C_TouchCmd;
+typedef lcb_store_cmd_t C_StoreCmd;
+typedef lcb_remove_cmd_t C_RemoveCmd;
+typedef lcb_arithmetic_cmd_t C_ArithCmd;
+typedef lcb_unlock_cmd_t C_UnlockCmd;
+typedef lcb_observe_cmd_t C_ObserveCmd;
+typedef lcb_durability_cmd_t C_DurabilityCmd;
 
-typedef lcb_get_resp_t LcbGetResponse;
-typedef lcb_touch_resp_t LcbTouchResponse;
-typedef lcb_store_resp_t LcbStoreResponse;
-typedef lcb_arithmetic_resp_t LcbArithmeticResponse;
-typedef lcb_unlock_resp_t LcbUnlockResponse;
-typedef lcb_remove_resp_t LcbDeleteResponse;
+typedef lcb_get_resp_t C_GetResp;
+typedef lcb_touch_resp_t C_TouchResp;
+typedef lcb_store_resp_t C_StoreResp;
+typedef lcb_arithmetic_resp_t C_ArithResp;
+typedef lcb_unlock_resp_t C_UnlockResp;
+typedef lcb_remove_resp_t C_RemoveResp;
 
 class Connection;
 class ResponseHandler;

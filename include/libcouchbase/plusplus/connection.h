@@ -8,26 +8,6 @@
 
 namespace Couchbase {
 
-namespace Internal {
-    template <typename T> class CommandList {
-    public:
-        std::vector<const T*> impl;
-
-        template <typename C>
-        CommandList(C **cmds, size_t ncmds) {
-            impl.reserve(ncmds);
-            for (size_t ii = 0; ii < ncmds; ii++) {
-                impl.push_back((T*)cmds[ii]->getLcbPointer());
-            }
-        }
-
-        const T * const * getList() const {
-            return &impl[0];
-        }
-    };
-}
-
-class OperationContext;
 class Connection
 {
 
@@ -61,55 +41,59 @@ public:
         return lcb_wait(instance);
     }
 
-    // Operations
-    lcb_error_t scheduleGet(GetCommand **commands, size_t ncmds, OperationContext *ctx) {
-        Internal::CommandList<lcb_get_cmd_t> l(commands, ncmds);
-        return lcb_get(instance, ctx, ncmds, l.getList());
+
+    // Get
+    lcb_error_t schedule(const GetCommand * const *commands, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_GetCmd>(ctx, commands, n, lcb_get);
     }
 
-    lcb_error_t scheduleGet(GetCommand *cmd, OperationContext *ctx) {
-        return scheduleGet(&cmd, 1, ctx);
+    lcb_error_t schedule(const GetCommand& cmd, OperationContext *ctx) {
+        return scheduleSingle<C_GetCmd>(ctx, cmd, lcb_get);
     }
 
-    lcb_error_t scheduleStore(StoreCommand **commands, size_t ncmds,
-                              OperationContext *ctx) {
-        Internal::CommandList<lcb_store_cmd_t> l(commands, ncmds);
-        return lcb_store(instance, ctx, ncmds, l.getList());
+    // Store
+    lcb_error_t schedule(const StoreCommand * const *commands, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_StoreCmd>(ctx, commands, n, lcb_store);
     }
 
-    lcb_error_t scheduleStore(StoreCommand *cmd, OperationContext *ctx) {
-        return scheduleStore(&cmd, 1, ctx);
+    lcb_error_t schedule(const StoreCommand &cmd, OperationContext *ctx) {
+        return scheduleSingle<C_StoreCmd>(ctx, cmd, lcb_store);
     }
 
-    lcb_error_t scheduleDelete(DeleteCommand **commands, size_t ncmds,
-                               OperationContext *ctx) {
-        Internal::CommandList<lcb_remove_cmd_t> l(commands, ncmds);
-        return lcb_remove(instance, ctx, ncmds, l.getList());
+    // Delete
+    lcb_error_t schedule(const DeleteCommand * const *commands, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_RemoveCmd>(ctx, commands, n, lcb_remove);
     }
 
-    lcb_error_t scheduleDelete(DeleteCommand *cmd, OperationContext *ctx) {
-        return scheduleDelete(&cmd, 1, ctx);
+    lcb_error_t schedule(const DeleteCommand &cmd, OperationContext *ctx) {
+        return scheduleSingle<C_RemoveCmd>(ctx, cmd, lcb_remove);
     }
 
-    lcb_error_t scheduleArithmetic(ArithmeticCommand **commands, size_t ncmds,
-                                   OperationContext *ctx) {
-        Internal::CommandList<lcb_arithmetic_cmd_t> l(commands, ncmds);
-        return lcb_arithmetic(instance, ctx, ncmds, l.getList());
-    }
-    lcb_error_t scheduleArithmetic(ArithmeticCommand *cmd, OperationContext *ctx) {
-        return scheduleArithmetic(&cmd, 1, ctx);
+    // Touch
+    lcb_error_t schedule(const TouchCommand * const *commands, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_TouchCmd>(ctx, commands, n, lcb_touch);
     }
 
-    lcb_error_t scheduleUnlock(UnlockCommand **commands, size_t ncmds,
-                               OperationContext *ctx) {
-        Internal::CommandList<lcb_unlock_cmd_t> l(commands, ncmds);
-        return lcb_unlock(instance, ctx, ncmds, l.getList());
+    lcb_error_t schedule(const TouchCommand& cmd, OperationContext *ctx) {
+        return scheduleSingle<C_TouchCmd>(ctx, cmd, lcb_touch);
     }
 
-    lcb_error_t scheduleTouch(TouchCommand **commands, size_t ncmds,
-                              OperationContext *ctx) {
-        Internal::CommandList<lcb_touch_cmd_t> l(commands, ncmds);
-        return lcb_touch(instance, ctx, ncmds, l.getList());
+    // Arithmetic
+    lcb_error_t schedule(const ArithmeticCommand * const *cmds, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_ArithCmd>(ctx, cmds, n, lcb_arithmetic);
+    }
+
+    lcb_error_t schedule(const ArithmeticCommand &cmd, OperationContext *ctx) {
+        return scheduleSingle<C_ArithCmd>(ctx, cmd, lcb_arithmetic);
+    }
+
+    // Unlock
+    lcb_error_t schedule(const UnlockCommand * const * cmds, size_t n, OperationContext *ctx) {
+        return scheduleMulti<C_UnlockCmd>(ctx, cmds, n, lcb_unlock);
+    }
+
+    lcb_error_t schedule(const UnlockCommand &cmd, OperationContext *ctx) {
+        return scheduleSingle<C_UnlockCmd>(ctx, cmd, lcb_unlock);
     }
 
 protected:
@@ -123,6 +107,29 @@ protected:
 private:
     Connection(Connection&);
     void initCallbacks();
+
+
+    template <typename T>
+    lcb_error_t scheduleSingle(OperationContext *ctx, const KeyCommand& cmd,
+                               lcb_error_t (*fn)(lcb_t, const void *, size_t, const T * const *)) {
+        const T* p = (const T *)cmd.getLcbPointer();
+        return fn(instance, ctx, 1, &p);
+    }
+
+    template <typename T, class C>
+    lcb_error_t scheduleMulti(OperationContext *ctx, const C * const * cmds, size_t n,
+                              lcb_error_t (*fn)(lcb_t, const void *, size_t, const T* const *)) {
+        if (n == 1) {
+            return scheduleSingle(ctx, *cmds[0], fn);
+        }
+
+        std::vector<const T*> l;
+        l.reserve(n);
+        for (size_t ii = 0; ii < n; ii++) {
+            l.push_back((const T*)cmds[ii]->getLcbPointer());
+        }
+        return fn(instance, ctx, n, &l[0]);
+    }
 };
 
 }
