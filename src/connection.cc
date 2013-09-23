@@ -73,38 +73,41 @@ void Connection::initCallbacks()
     lcb_set_unlock_callback(instance, thunk_onUnlock);
 }
 
-Connection::Connection(lcb_error_t &status,
-                       const string &host,
-                       const string &bkt,
-                       const string &user,
-                       const string &pass,
-                       lcb_io_opt_t io)
-: instance(NULL), hostname(host), bucket(bkt), username(user), password(pass)
+
+static void setIfEmpty(const std::string& src, const char **target)
 {
-    memset(&creationOptions, 0, sizeof(creationOptions));
-    creationOptions.version = 1;
+    if (src.empty()) {
+        *target = NULL;
+    }
+    *target = src.c_str();
+}
 
-    if (!hostname.empty()) {
-        creationOptions.v.v1.host = hostname.c_str();
+lcb_error_t LcbFactory::createInstance(lcb_t *instance)
+{
+    *instance = NULL;
+    struct lcb_create_st crOpts;
+    memset(&crOpts, 0, sizeof(crOpts));
+
+    crOpts.version = 1;
+
+    std::string hostString;
+    for (size_t ii = 0; ii < hosts.size(); ii++) {
+        hostString += hosts[ii];
+        hostString += ';';
     }
 
-    if (!bucket.empty()) {
-        creationOptions.v.v1.bucket = bucket.c_str();
-    }
+    setIfEmpty(hostString, &crOpts.v.v1.host);
+    setIfEmpty(bucket, &crOpts.v.v1.bucket);
+    setIfEmpty(username, &crOpts.v.v1.user);
+    setIfEmpty(passwd, &crOpts.v.v1.passwd);
+    crOpts.v.v1.io = io;
 
-    if (!username.empty()) {
-        creationOptions.v.v1.user = username.c_str();
-    }
+    return lcb_create(instance, &crOpts);
+}
 
-    if (!password.empty()) {
-        creationOptions.v.v1.passwd = password.c_str();
-    }
-
-    if (io) {
-        creationOptions.v.v1.io = io;
-    }
-
-    status = lcb_create(&instance, &creationOptions);
+Connection::Connection(lcb_error_t &status, LcbFactory &params) : instance(NULL)
+{
+    status = params.createInstance(&instance);
     if (status == LCB_SUCCESS) {
         initCallbacks();
         lcb_set_cookie(instance, this);

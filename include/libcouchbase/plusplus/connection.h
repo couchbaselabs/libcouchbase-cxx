@@ -8,21 +8,32 @@
 
 namespace Couchbase {
 
+class LcbFactory {
+public:
+    LcbFactory(std::string hostname = "", std::string bucketname = "") : io(NULL) {
+        if (!hostname.empty()) {
+            hosts.push_back(hostname);
+        }
+        bucket = bucketname;
+    }
+
+    std::vector<std::string> hosts;
+    std::string bucket;
+    std::string username;
+    std::string passwd;
+    lcb_io_opt_t io;
+
+    lcb_error_t createInstance(lcb_t *instance);
+};
+
 class Connection
 {
 
 public:
-    Connection(lcb_error_t &status,
-               const std::string &host = "localhost",
-               const std::string &bkt="default",
-               const std::string &user = "",
-               const std::string &pass = "",
-               lcb_io_opt_t io = NULL);
+    Connection(lcb_error_t &status, LcbFactory &params);
+    Connection(lcb_t existing, ResponseHandler *resphandler): instance(existing) {}
 
-    Connection(lcb_t existing, ResponseHandler *resphandler): instance(existing) {
-    }
-
-    ~Connection() {
+    virtual ~Connection() {
         if (instance) {
             lcb_destroy(instance);
         }
@@ -97,12 +108,7 @@ public:
     }
 
 protected:
-    struct lcb_create_st creationOptions;
     lcb_t instance;
-    std::string hostname;
-    std::string bucket;
-    std::string username;
-    std::string password;
 
 private:
     Connection(Connection&);

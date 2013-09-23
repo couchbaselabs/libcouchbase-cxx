@@ -40,9 +40,11 @@ public:
 int main(void)
 {
     lcb_error_t status;
-    Connection conn(status);
+    LcbFactory params;
+    Connection conn(status, params);
     MyResponseHandler handler;
     OperationContext ctx;
+
     assert(status == LCB_SUCCESS);
 
     assert((status = conn.connect()) == LCB_SUCCESS);

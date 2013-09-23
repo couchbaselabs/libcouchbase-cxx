@@ -193,30 +193,44 @@ class ResponseHandler;
  * This structure may be subclassed by the user to contain other data related
  * to the command. It is passed as the first argument to each of the callbacks.
  */
-struct OperationContext {
+class OperationContext {
+public:
     ResponseHandler *handler;
     Connection *conn;
+    virtual ~OperationContext(){}
 };
 
 // You should subclass this and define your own callbacks..
 class ResponseHandler {
 public:
-    virtual void onGet(OperationContext*, const GetResponse*, lcb_error_t) {
+    // This is the handler to be called as the 'default' handler. This is
+    // typically useful when casting to another type, when the actual handler
+    // remains further up the stack
+    virtual void onDefault(OperationContext *, const ResponseBase *, lcb_error_t) {
     }
 
-    virtual void onStore(OperationContext*, const StoreResponse*, lcb_error_t) {
+    virtual void onGet(OperationContext *c, const GetResponse* r, lcb_error_t e) {
+        onDefault(c, r, e);
     }
 
-    virtual void onTouch(OperationContext*, const TouchResponse*, lcb_error_t) {
+    virtual void onStore(OperationContext *c, const StoreResponse *r, lcb_error_t e) {
+        onDefault(c, r, e);
     }
 
-    virtual void onDelete(OperationContext*, const DeleteResponse*, lcb_error_t) {
+    virtual void onTouch(OperationContext *c, const TouchResponse *r, lcb_error_t e) {
+        onDefault(c, r, e);
     }
 
-    virtual void onUnlock(OperationContext*, const UnlockResponse*, lcb_error_t) {
+    virtual void onDelete(OperationContext *c, const DeleteResponse *r, lcb_error_t e) {
+        onDefault(c, r, e);
     }
 
-    virtual void onArithmetic(OperationContext*, const ArithmeticResponse *, lcb_error_t) {
+    virtual void onUnlock(OperationContext *c, const UnlockResponse *r, lcb_error_t e) {
+        onDefault(c, r, e);
+    }
+
+    virtual void onArithmetic(OperationContext *c, const ArithmeticResponse *r, lcb_error_t e) {
+        onDefault(c, r, e);
     }
 
     virtual ~ResponseHandler() { }
