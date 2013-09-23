@@ -19,6 +19,11 @@ public:
      * Wait until the response for this 'future' object is available
      */
     const void *getResponse();
+
+    template <typename T> const T* get() {
+        return reinterpret_cast<const T*>(getResponse());
+    }
+
     lcb_error_t getStatus() const { return status; }
 
     /**

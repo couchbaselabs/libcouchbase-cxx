@@ -64,7 +64,7 @@ void Future::waitToFreeResponse()
 void FutureHandler::onDefault(OperationContext *ctx,
                               const ResponseBase *resp, lcb_error_t err)
 {
-    Future *ft = reinterpret_cast<Future*>(ctx);
+    Future *ft = static_cast<Future*>(ctx);
     ft->mtCtx->handlerEnter();
 
     pthread_mutex_lock(&ft->mutex);

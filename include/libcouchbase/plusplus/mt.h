@@ -132,17 +132,6 @@ class MtConnection : public Connection {
 public:
     MtConnection(lcb_error_t&, LcbFactory &);
     bool connectSync();
-    void onConnected();
-    void lockConnection() {
-        pthread_mutex_lock(&mutex);
-    }
-    void unlockConnection() {
-        pthread_mutex_unlock(&mutex);
-    }
-private:
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    bool connected;
 };
 
 }

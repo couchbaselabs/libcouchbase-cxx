@@ -6,12 +6,20 @@
 #include <cstdio>
 #include <unistd.h>
 #include <iostream>
+#include "cliopts.h"
 
 using namespace Couchbase;
 using namespace Couchbase::Mt;
 using std::string;
 using std::cout;
 using std::endl;
+
+struct Settings {
+    int nThreads;
+    int batchSize;
+};
+
+static Settings globalSettings;
 
 static volatile unsigned long opCounter = 0;
 static time_t beginTime;
@@ -21,6 +29,8 @@ public:
     MtConnection *conn;
     FutureHandler *handler;
     Context *ctx;
+    std::string key;
+    std::string value;
 };
 
 extern "C" {
@@ -30,42 +40,30 @@ static void *thr_run(void *arg) {
     Context *ctx = info->ctx;
 
     Future f(info->handler, ctx);
-    std::string key = "thrkey";
-    std::string value = "bar";
+    StoreCommand scmd(info->key, info->value);
+    lcb_error_t err;
 
-    char buf[32];
-    sprintf(buf, "%x\n", (int)pthread_self());
-    key += buf;
-
-    cout << "Key: " << key << endl;
-
-    StoreCommand scmd(key, value);
-
-
-    ctx->startSchedulePipeline();
-    lcb_error_t err = conn->schedule(scmd, &f);
-    ctx->endSchedulePipeline();
-    assert(err == LCB_SUCCESS);
-
-    const void *gresp = f.getResponse();
-    const StoreResponse *r = reinterpret_cast<const StoreResponse *>(gresp);
-    assert(r->getKey().size());
-    assert(f.getStatus() == LCB_SUCCESS);
-    f.releaseResponse();
-    f.reset();
+    int ncmds = globalSettings.batchSize;
+    StoreCommand *cmdList[ncmds];
+    for (int ii = 0; ii < ncmds; ii++) {
+        cmdList[ii] = &scmd;
+    }
 
     while (1) {
         ctx->startSchedulePipeline();
-        err = conn->schedule(scmd, &f);
+        err = conn->schedule(cmdList, ncmds, &f);
         ctx->endSchedulePipeline();
         assert(err == LCB_SUCCESS);
 
-        gresp = f.getResponse();
-        r = reinterpret_cast<const StoreResponse *>(gresp);
-        assert(f.getStatus() == LCB_SUCCESS);
-        f.reset();
-        f.releaseResponse();
-        opCounter++;
+        for (int ii = 0; ii < ncmds; ii++) {
+            const StoreResponse *r = f.get<StoreResponse>();
+            assert(f.getStatus() == LCB_SUCCESS);
+            assert(r->getCas());
+            assert(r->getKey().size());
+            f.releaseResponse();
+            opCounter++;
+
+        }
     }
     return NULL;
 }
@@ -86,41 +84,70 @@ static void *op_printer(void *) {
     return NULL;
 }
 
-int main(void) {
+
+
+int main(int argc, char **argv) {
     beginTime = time(NULL);
     pthread_t opthr;
+
+    const char *sHost = "localhost:8091";
+    const char *sBucket = "default";
+    globalSettings.batchSize = 1;
+    globalSettings.nThreads = 4;
+    LcbFactory factory;
+
+
+    cliopts_entry optionEntries[] = {
+        { 'H', "host", CLIOPTS_ARGT_STRING, &sHost },
+        { 'b', "bucket", CLIOPTS_ARGT_STRING, &sBucket },
+        { 't', "threads", CLIOPTS_ARGT_INT, &globalSettings.nThreads },
+        { 's', "sched", CLIOPTS_ARGT_INT, &globalSettings.batchSize },
+        { 0, NULL }
+    };
+
+    int lastix;
+    if (-1 == cliopts_parse_options(optionEntries, argc, argv, &lastix, NULL)) {
+        return 1;
+    }
+
+    factory.bucket = sBucket;
+    factory.hosts.push_back(sHost);
+
+
+
     pthread_create(&opthr, NULL, op_printer, NULL);
 
     lcb_io_opt_t io;
     lcb_create_io_ops(&io, NULL);
     assert(io);
     lcb_error_t status;
-    LcbFactory factory;
     factory.io = io;
-    factory.hosts.push_back("localhost:8091");
-
 
     MtConnection conn(status, factory);
     assert(status == LCB_SUCCESS);
     FutureHandler handler;
     Context ctx(&conn, io);
-    ctx.start();
-
     conn.connectSync();
+
+    ctx.start();
     printf("Connected!!\n");
 
-    MyInfo info;
-    info.conn = &conn;
-    info.ctx = &ctx;
-    info.handler = &handler;
 
-    int thr_max = 5;
-    pthread_t thrs[thr_max];
-    for (int ii = 0; ii < thr_max; ii++) {
-        pthread_create(thrs + ii, NULL, thr_run, &info);
+    MyInfo infos[globalSettings.nThreads];
+    pthread_t thrs[globalSettings.nThreads];
+    for (int ii = 0; ii < globalSettings.nThreads; ii++) {
+        MyInfo *info = infos + ii;
+        info->conn = &conn;
+        info->ctx = &ctx;
+        info->handler = &handler;
+        info->key = "thrkey_";
+        info->key += ii;
+        info->value = "thrval";
+
+        pthread_create(thrs + ii, NULL, thr_run, info);
     }
 
-    for (int ii =0; ii < thr_max; ii++) {
+    for (int ii =0; ii < globalSettings.nThreads; ii++) {
         void *arg;
         pthread_join(thrs[ii], &arg);
     }

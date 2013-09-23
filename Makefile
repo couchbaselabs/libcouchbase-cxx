@@ -1,11 +1,23 @@
 LCB_ROOT=/sources/libcouchbase/inst
 CPPFLAGS=-Wall -g -I$(LCB_ROOT)/include -Iinclude
-LDFLAGS=-Wl,-rpath=$(LCB_ROOT)/lib -L$(LCB_ROOT)/lib -lcouchbase -lpthread
+LDFLAGS=-Wl,-rpath=$(LCB_ROOT)/lib -L$(LCB_ROOT)/lib \
+		-Wl,-rpath='$(ORIGIN)' -L. \
+		-lcouchbase -lpthread -lcouchbase-cxx
 
-all: sample mt
+SO=libcouchbase-cxx.so
+OBJS=src/connection.o src/mt.o src/future.o
 
-sample: examples/sample.cpp src/connection.cc
+all: $(SO) sample mt
+
+%.o: %.cc
+	$(CXX) -c $(CPPFLAGS) -fPIC -o $@ $^
+
+libcouchbase-cxx.so: $(OBJS)
+	$(CXX) $(CPPFLAGS) -shared -o $@ $^
+
+
+sample: examples/sample.cpp $(SO)
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS)
 
-mt: examples/threads.cc src/connection.cc src/mt.cc src/future.cc
+mt: examples/threads.cc examples/cliopts.o $(SO)
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LDFLAGS)

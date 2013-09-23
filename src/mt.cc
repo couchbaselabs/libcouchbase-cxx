@@ -180,48 +180,21 @@ bool Context::initSockCommon(int sock)
     return rv == 0;
 }
 
-
-extern "C" {
-static void config_callback(lcb_t instance, lcb_configuration_t)
-{
-    MtConnection *conn = reinterpret_cast<MtConnection *>(
-            const_cast<void*>(lcb_get_cookie(instance)));
-    conn->onConnected();
-}
-}
 // Connection stuff
 MtConnection::MtConnection(lcb_error_t &err, LcbFactory &params)
-: Connection(err, params), connected(false)
+: Connection(err, params)
 {
-    if (err != LCB_SUCCESS) {
-        return;
-    }
-    pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&cond, NULL);
 }
 
 bool MtConnection::connectSync()
 {
-    assert(!connected);
-    pthread_mutex_lock(&mutex);
-    lcb_set_configuration_callback(instance, config_callback);
-
-    if (this->connect() != LCB_SUCCESS) {
-        pthread_mutex_unlock(&mutex);
+    lcb_error_t rv = this->connect();
+    if (rv != LCB_SUCCESS) {
         return false;
     }
-
-    while (!connected) {
-        pthread_cond_wait(&cond, &mutex);
+    rv = this->wait();
+    if (rv != LCB_SUCCESS) {
+        return false;
     }
-    pthread_mutex_unlock(&mutex);
     return true;
-}
-
-void MtConnection::onConnected() {
-    lcb_set_configuration_callback(instance, NULL);
-    pthread_mutex_lock(&mutex);
-    connected = true;
-    pthread_cond_signal(&cond);
-    pthread_mutex_unlock(&mutex);
 }
