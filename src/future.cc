@@ -32,10 +32,10 @@ const void* Future::getResponse()
     int rv = pthread_mutex_lock(&mutex);
     assert(!rv);
 
-    do {
+    while (!resp) {
         rv = pthread_cond_wait(&cond, &mutex);
         assert(!rv);
-    } while (!resp);
+    }
 
     return resp;
 }

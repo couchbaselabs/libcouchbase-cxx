@@ -112,11 +112,9 @@ void Context::handlerEnter() {
 }
 
 void Context::handlerLeave() {
-    while (waiters) {
-//        printf("Waiters: %d\n", waiters);
-    }
+    // We spin here - is this a good idea?
+    while (waiters) {}
     pthread_mutex_lock(&eventMutex);
-//    printf("Returning..\n");
 }
 
 extern "C" {
