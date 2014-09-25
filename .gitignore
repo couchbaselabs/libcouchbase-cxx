@@ -3,3 +3,4 @@ sample
 mt
 *.o
 *.so
+/build
