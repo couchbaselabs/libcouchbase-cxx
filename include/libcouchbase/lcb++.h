@@ -5,6 +5,7 @@
 #include <libcouchbase/api3.h>
 #include <libcouchbase/pktfwd.h>
 #include <string>
+#include <stdint.h>
 #include <map>
 #include <vector>
 #include "lcb++-internal.h"
