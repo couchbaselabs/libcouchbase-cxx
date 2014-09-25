@@ -155,8 +155,8 @@ public:
 class EndureResponse : public Response {
 public:
     void init(const lcb_RESPBASE *res) { u.endure = *(lcb_RESPENDURE*)res; }
-    bool on_master_storage() const { return u.endure.persisted_master; }
-    bool on_master_ram() const { return u.endure.exists_master; }
+    bool on_master_storage() const { return u.endure.persisted_master ? true : false; }
+    bool on_master_ram() const { return u.endure.exists_master ? true : false; }
     size_t probes() const { return u.endure.nresponses; }
     size_t persisted() const { return u.endure.npersisted; }
     size_t replicate() const { return u.endure.nreplicated; }
