@@ -20,9 +20,10 @@ int main(int argc, char **argv)
     string connstr(argc > 1 ? argv[1] : "couchbase://localhost/default");
     Couchbase::Client h(connstr);
     Status rv = h.connect();
-    if (rv.errcode() != LCB_SUCCESS) {
-        cout << "Something wrong to connect '" << connstr << "'" << connstr;
-        return -1;
+    if (!rv.success()) {
+        cout << "Couldn't connect to '" << connstr << "'. "
+                << "Reason: " << rv << endl;
+        exit(EXIT_FAILURE);
     }
 
     //! Store item.
