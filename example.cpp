@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     //! Store item.
     UpsertOperation scmd("foo",
         "{ \"v\": 100.1, \"list\": [1,2,3,4,5,6,7], \"talk\": \"About Foo.\" }");
-    Response sres = scmd.run(h);
+    auto sres = scmd.run(h);
     cout << "Got status for store. Cas=" << std::hex << sres.cas() << endl;
 
     //! Use a command to retrieve an item
@@ -82,40 +82,37 @@ int main(int argc, char **argv)
     RemoveOperation("bar").run(h);
     RemoveOperation("baz").run(h);
 
-    for (int ii = 0; ii < 1; ii++) {
-        Status status;
-        ViewCommand vCmd("beer", "brewery_beers");
-        vCmd.include_docs();
-        vCmd.add_option("limit", 100);
-        vCmd.add_option("skip", 10);
-        vCmd.add_option("descending", true);
-        cout << "using options: " << vCmd.get_options() << endl;
+    Status status;
+    ViewCommand vCmd("beer", "brewery_beers");
+    vCmd.include_docs();
+    vCmd.add_option("limit", 10);
+    vCmd.add_option("skip", 10);
+    vCmd.add_option("descending", true);
+    cout << "using options: " << vCmd.get_options() << endl;
 
-        ViewQuery query(h, vCmd, status);
-        if (!status) {
-            cerr << "Error with view command: " << status << endl;
-        }
+    ViewQuery query(h, vCmd, status);
+    if (!status) {
+        cerr << "Error with view command: " << status << endl;
+    }
 
-        size_t numRows = 0;
-        for (auto ii = query.begin(); ii != query.end(); ii++) {
-//            const ViewRow& rr = *ii;
-//            cout << "Key: " << rr.key() << endl;
-//            cout << "Value: " << rr.value() << endl;
-//            cout << "DocID: " << rr.docid() << endl;
-//
-//            if (rr.has_document()) {
-//                std::string value;
-//                rr.document().value(value);
-//                cout << "Document: " << value << endl;
-//            } else {
-//                cout << "NO DOCUMENT!" << endl;
-//            }
-            numRows ++;
-        }
-        cout << "Got: " << std::dec << numRows << " rows" << endl;
-        if (!query.status()) {
-            cerr << "Problem with query: " << query.status() << endl;
-        }
+    size_t numRows = 0;
+    for (auto ii = query.begin(); ii != query.end(); ii++) {
+            cout << "Key: " << ii->key() << endl;
+            cout << "Value: " << ii->value() << endl;
+            cout << "DocID: " << ii->docid() << endl;
+
+            if (ii->has_document()) {
+                std::string value;
+                ii->document().value(value);
+                cout << "Document: " << value << endl;
+            } else {
+                cout << "NO DOCUMENT!" << endl;
+            }
+        numRows ++;
+    }
+    cout << "Got: " << std::dec << numRows << " rows" << endl;
+    if (!query.status()) {
+        cerr << "Problem with query: " << query.status() << endl;
     }
     return 0;
 }
