@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     //! Store item.
     UpsertOperation scmd("foo",
         "{ \"v\": 100.1, \"list\": [1,2,3,4,5,6,7], \"talk\": \"About Foo.\" }");
-    Response& sres = scmd.run(h);
+    Response sres = scmd.run(h);
     cout << "Got status for store. Cas=" << std::hex << sres.cas() << endl;
 
     //! Use a command to retrieve an item

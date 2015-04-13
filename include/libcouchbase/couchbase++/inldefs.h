@@ -26,7 +26,7 @@ Status ObserveOperation::scheduleLcb(lcb_t instance) {
     else { mctx->fail(mctx); return st; }
 }
 
-template <typename A, typename B> inline B&
+template <typename A, typename B> inline B
 Operation<A,B>::run(Client& client) {
     BatchContext b(client);
     Status st = schedule(b);

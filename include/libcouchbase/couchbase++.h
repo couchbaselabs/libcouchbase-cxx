@@ -258,6 +258,9 @@ typedef Response TouchResponse;
 class GetResponse : public Response {
 public:
     inline GetResponse();
+    GetResponse(const GetResponse& other) { assign_first(other); }
+    inline GetResponse& operator=(const GetResponse&);
+
     ~GetResponse() { clear(); }
 
     //! @brief Release memory used by the response value
@@ -292,8 +295,6 @@ private:
     friend class ViewRow;
     void assign_first(const GetResponse& other);
 
-    GetResponse(const GetResponse& other) { assign_first(other); }
-    inline GetResponse& operator=(const GetResponse&);
     inline bool hasSharedBuffer() const;
     inline bool hasAllocBuffer() const;
     inline char *vbuf_refcnt();
@@ -497,7 +498,7 @@ public:
     //! @param client the client to use. The client must not have an active
     //!        context.
     //! @return the status of the response
-    inline R& run(Client& client);
+    inline R run(Client& client);
 protected:
     friend class BatchContext;
     inline Status scheduleLcb(lcb_t);
