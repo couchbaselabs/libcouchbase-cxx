@@ -97,7 +97,7 @@ int main(int argc, char **argv)
         }
 
         size_t numRows = 0;
-        for (ViewQuery::const_iterator ii = query.begin(); ii != query.end(); ii++) {
+        for (auto ii = query.begin(); ii != query.end(); ii++) {
 //            const ViewRow& rr = *ii;
 //            cout << "Key: " << rr.key() << endl;
 //            cout << "Value: " << rr.value() << endl;
