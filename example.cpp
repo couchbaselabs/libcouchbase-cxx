@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     GetOperation cmd("foo");
     cmd.run(h);
     //! The response object can be returned via run() or via response()
-    GetResponse& res = cmd.response();
+    auto res = cmd.response();
     cout << "Got value: " << res.value() << std::endl;
 
     cmd.key("non-exist-key");

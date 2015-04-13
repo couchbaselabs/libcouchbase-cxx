@@ -483,7 +483,7 @@ public:
 
     //! Get the response
     //! @return a reference to the inner response object
-    R& response() { return res; }
+    R response() { return res; }
     const R& const_response() const { return res; }
 
     //! Schedule an operation on an active context
