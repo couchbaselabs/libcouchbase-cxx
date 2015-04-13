@@ -15,6 +15,8 @@
 
 #define LCB_CXX_OP_CTOR(name) \
     name() : _Cmdcls() {} \
+    \
+    /** Construct an operation using the key */ \
     name(const char *k) : _Cmdcls() {_Cmdcls::key(k);} \
     name(const char *k, size_t n) : _Cmdcls() {_Cmdcls::key(k,n);} \
     name(const std::string& s) : _Cmdcls() {_Cmdcls::key(s);}
