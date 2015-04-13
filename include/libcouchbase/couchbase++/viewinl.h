@@ -148,6 +148,9 @@ public:
     const ViewRow& operator*() const {
         return *pp;
     }
+    const ViewRow* operator->() const {
+        return pp;
+    }
     ViewIterator(const ViewIterator& other) : q(other.q) {
         pp = other.pp;
     }
