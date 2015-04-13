@@ -17,7 +17,7 @@ using namespace Couchbase;
 int main(int argc, char **argv)
 {
     //! Connect to the client
-    const char *connstr = argc > 1 ? argv[1] : "couchbase://localhost/default";
+    string connstr(argc > 1 ? argv[1] : "couchbase://localhost/default");
     Couchbase::Client h(connstr);
     Status rv = h.connect();
     if (rv.errcode() != LCB_SUCCESS) {

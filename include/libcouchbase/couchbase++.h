@@ -15,7 +15,6 @@
 
 namespace Couchbase {
 
-
 //! @brief Status code. This wrapp an `lcb_error_t`.
 //!
 //! @details
@@ -424,7 +423,7 @@ public:
     //! @brief Initialize the client
     //! @param connstr the connection string
     //! @param passwd the password for the bucket (if password protected)
-    Client(const char *connstr = "couchbase://localhost/default", const char *passwd = NULL);
+    Client(const std::string& connstr = "couchbase://localhost/default", const std::string& passwd = "");
     ~Client();
 
     //! @brief Wait until client is connected

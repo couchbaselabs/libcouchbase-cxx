@@ -39,12 +39,14 @@ Client::_dispatch(int cbtype, const lcb_RESPBASE *r)
     }
 }
 
-Client::Client(const char *connstr, const char *passwd) : remaining(0)
+Client::Client(const std::string& connstr, const std::string& passwd) : remaining(0)
 {
     lcb_create_st cropts;
     cropts.version = 3;
-    cropts.v.v3.connstr = connstr;
-    cropts.v.v3.passwd = passwd;
+    cropts.v.v3.connstr = connstr.c_str();
+    if (!passwd.empty()) {
+        cropts.v.v3.passwd = passwd.c_str();
+    }
     Status rv = lcb_create(&instance, &cropts);
     if (rv != LCB_SUCCESS) {
         throw rv;
