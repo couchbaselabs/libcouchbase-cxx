@@ -188,6 +188,6 @@ static void cbViewCallback(lcb_t, int, const lcb_RESPVIEWQUERY *resp) {
 } // namespace Internal
 } // namespace Couchbase
 
-#include <libcouchbase/couchbase++/viewinl.h>
+#include <libcouchbase/couchbase++/views.inl.h>
 
 #endif

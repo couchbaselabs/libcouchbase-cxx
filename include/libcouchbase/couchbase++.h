@@ -196,6 +196,23 @@ public:
     LCB_CXX_CMD_IS(lcb_CMDREMOVE, m_base)
 };
 
+class StatsCommand : public Command {
+public:
+    LCB_CXX_CMD_CTOR(StatsCommand)
+    LCB_CXX_CMD_IS(lcb_CMDSTATS, m_stats)
+};
+
+class TouchCommand : public Command {
+public:
+    LCB_CXX_CMD_CTOR(TouchCommand)
+    LCB_CXX_CMD_IS(lcb_CMDTOUCH, m_touch)
+};
+
+class UnlockCommand : public Command {
+public:
+    LCB_CXX_CMD_CTOR(UnlockCommand)
+    LCB_CXX_CMD_IS(lcb_CMDUNLOCK, m_unlock)
+};
 
 class ObserveCommand : public Command {
 public:
@@ -207,8 +224,6 @@ public:
     }
 };
 
-
-typedef Command TouchCommand;
 
 class Client;
 
@@ -253,6 +268,7 @@ private:
 typedef Response StoreResponse;
 typedef Response RemoveResponse;
 typedef Response TouchResponse;
+typedef Response UnlockResponse;
 
 //! @brief Response for @ref GetCommand requests
 class GetResponse : public Response {
@@ -334,7 +350,7 @@ public:
 
     ObserveResponse() : Response(), initialized(false) { }
     void init(const lcb_RESPBASE *res);
-    const ServerReply& master_reply() const;
+    inline const ServerReply& master_reply() const;
     const std::vector<ServerReply>& all_replies() const { return sinfo; }
 private:
     bool initialized;
@@ -365,17 +381,17 @@ public:
     //!          time. In addition, when a batch context is active, higher
     //!          level calls on the client (such as Client::get()) cannot be
     //!          performed.
-    BatchContext(Client& client);
-    ~BatchContext();
+    inline BatchContext(Client& client);
+    inline ~BatchContext();
 
     //! Wrapper method for scheduling a get operation. This allows the operation
     //! to later be retrieved using #valueFor()
-    Status get(const std::string& s);
+    inline Status get(const std::string& s);
 
     //! @brief Cancel any operations submitted in the current batch. This also
     //!        deactivates the batch. This is useful if scheduling several
     //!        dependent operations, where one of the operations fail.
-    void bail();
+    inline void bail();
 
     template <typename T> Status addop(T& op) {
         Status rv = op.scheduleLcb(getLcbt());
@@ -388,10 +404,10 @@ public:
     //! @brief Submit all previously scheduled operations. These operations
     //!        will be performed when Client::wait() is called. This function
     //!        also deactivates the batch.
-    void submit();
+    inline void submit();
 
     //! @brief Re-activates the batch.
-    void reset();
+    inline void reset();
 
     //! @brief Retrieve responses for @ref GetOperation objects which were requested
     //! via #get()
@@ -399,8 +415,8 @@ public:
     //! @return The GetResponse object for the given item. This is only valid
     //! if `s` was requested via e.g. `get(s)` _and_ #submit() has been called
     //! _and_ Client::wait() has been called.
-    const GetResponse& valueFor(const std::string& s);
-    const GetResponse& operator[](const std::string&s) { return valueFor(s); }
+    inline const GetResponse& valueFor(const std::string& s);
+    inline const GetResponse& operator[](const std::string&s) { return valueFor(s); }
     inline lcb_t getLcbt() const;
 private:
     friend class Command;
@@ -424,8 +440,18 @@ public:
     //! @brief Initialize the client
     //! @param connstr the connection string
     //! @param passwd the password for the bucket (if password protected)
-    Client(const std::string& connstr = "couchbase://localhost/default", const std::string& passwd = "");
-    ~Client();
+    inline Client(const std::string& connstr = "couchbase://localhost/default", const std::string& passwd = "");
+    inline ~Client();
+
+    inline GetResponse get(const GetCommand&);
+    inline TouchResponse touch(const TouchCommand&);
+    inline StoreResponse upsert(const StoreCommand&);
+    inline StoreResponse add(const StoreCommand&);
+    inline StoreResponse replace(const StoreCommand&);
+    inline RemoveResponse remove(const RemoveCommand&);
+    inline CounterResponse counter(const CounterCommand&);
+    inline StatsResponse stats(const std::string& key);
+    inline UnlockResponse unlock(const UnlockCommand& cmd);
 
     //! @brief Wait until client is connected
     //! @details
@@ -433,24 +459,24 @@ public:
     //! status code indicating whether the bootstrap was successful or not.
     //! If the bootstrap failed, you should destroy the object - as it cannot
     //! be used for operations.
-    Status connect();
+    inline Status connect();
 
     //! Wait for all scheduled operations to complete. This is where the library
     //! sends  requests to the server and receives their responses
-    void wait();
+    inline void wait();
 
     //! Retrieve the inner `lcb_t` for use with the C API.
     //! @return the C library handle
-    lcb_t getLcbt() const { return instance; }
+    inline lcb_t getLcbt() const { return instance; }
 
     //! @private
-    void breakout() { if (!remaining) { lcb_breakout(instance); } }
+    inline void breakout() { if (!remaining) { lcb_breakout(instance); } }
     //! @private
-    void _dispatch(int, const lcb_RESPBASE*);
+    inline void _dispatch(int, const lcb_RESPBASE*);
 private:
     friend class BatchContext;
     friend class DurabilityContext;
-    Status schedule(const Command&, Response*, lcb_CALLBACKTYPE op);
+    inline Status schedule(const Command&, Response*, lcb_CALLBACKTYPE op);
     lcb_t instance;
     size_t remaining;
     Client(Client&);
@@ -472,7 +498,13 @@ protected:
     typedef R _Respcls;
 
 public:
-    LCB_CXX_OP_CTOR(Operation)
+    Operation() : _Cmdcls() {}
+    Operation(const _Cmdcls& c) : _Cmdcls(c) {}
+    Operation(_Cmdcls& c) : _Cmdcls(c) {}
+    Operation(const char *key) : _Cmdcls(key) {}
+    Operation(const char *key, size_t nkey) : _Cmdcls(key, nkey) {}
+    Operation(const std::string& key) : _Cmdcls(key) {}
+
     Operation<StoreCommand,R>(const std::string& k, const std::string& v,
         lcb_storage_t mode = LCB_SET) : StoreCommand(k, v, mode) {
     }
@@ -530,6 +562,7 @@ typedef Operation<TouchCommand,TouchResponse> TouchOperation;
 //! Change counter value. @see CounterCommand
 typedef Operation<CounterCommand,CounterResponse> CounterOperation;
 typedef Operation<ObserveCommand,ObserveResponse> ObserveOperation;
+typedef Operation<UnlockCommand, UnlockResponse> UnlockOperation;
 
 #define LCB_CXX_STORE_CTORS(cName, mType) \
     cName(const std::string k, const std::string& v) : StoreOperation(k, v, mType) { \
@@ -544,7 +577,7 @@ typedef Operation<ObserveCommand,ObserveResponse> ObserveOperation;
 lcb_t BatchContext::getLcbt() const { return parent.getLcbt(); }
 } // namespace Couchbase
 
-#include <libcouchbase/couchbase++/inldefs.h>
+#include <libcouchbase/couchbase++/operations.inl.h>
 
 namespace Couchbase {
 //! Modify item unconditionally
@@ -566,5 +599,8 @@ public:
 };
 }
 
+#include <libcouchbase/couchbase++/endure.h>
+#include <libcouchbase/couchbase++/client.inl.h>
+#include <libcouchbase/couchbase++/batch.inl.h>
 
 #endif

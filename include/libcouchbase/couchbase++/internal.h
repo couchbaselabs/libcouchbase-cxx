@@ -13,14 +13,6 @@
     name(const char *k, size_t n) : Command() {key(k,n);} \
     name(const std::string& s) : Command() {key(s);}
 
-#define LCB_CXX_OP_CTOR(name) \
-    name() : _Cmdcls() {} \
-    \
-    /** Construct an operation using the key */ \
-    name(const char *k) : _Cmdcls() {_Cmdcls::key(k);} \
-    name(const char *k, size_t n) : _Cmdcls() {_Cmdcls::key(k,n);} \
-    name(const std::string& s) : _Cmdcls() {_Cmdcls::key(s);}
-
 #define LCB_CXX_UREQUESTS \
     lcb_CMDBASE m_base; \
     lcb_CMDGET m_get; \
@@ -29,7 +21,9 @@
     lcb_CMDCOUNTER m_arith; \
     lcb_CMDSTATS m_stats; \
     lcb_CMDVERBOSITY m_verbosity; \
-    lcb_CMDOBSERVE m_obs;
+    lcb_CMDOBSERVE m_obs; \
+    lcb_CMDTOUCH m_touch; \
+    lcb_CMDUNLOCK m_unlock;
 
 namespace Couchbase {
 

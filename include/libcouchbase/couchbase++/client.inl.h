@@ -1,16 +1,16 @@
-#include <libcouchbase/couchbase++.h>
-#include <libcouchbase/couchbase++/endure.h>
-#include <stdio.h>
-using namespace Couchbase;
-using std::string;
-using std::map;
-using std::vector;
+#ifndef LCB_PLUSPLUS_H
+#error "include <libcouchbase/couchbase++.h> first"
+#endif
 
+namespace Couchbase {
+
+namespace Internal {
 extern "C" {
-static void cbwrap(lcb_t instance, int cbtype, const lcb_RESPBASE *res)
+static inline void cbwrap(lcb_t instance, int cbtype, const lcb_RESPBASE *res)
 {
     Client *h = reinterpret_cast<Client*>((void*)lcb_get_cookie(instance));
     h->_dispatch(cbtype, res);
+}
 }
 }
 
@@ -76,9 +76,83 @@ Client::connect()
     wait();
     ret = lcb_get_bootstrap_status(instance);
     if (ret.success()) {
-        lcb_install_callback3(instance, LCB_CALLBACK_DEFAULT, cbwrap);
+        lcb_install_callback3(instance, LCB_CALLBACK_DEFAULT, Internal::cbwrap);
     }
     return ret;
+}
+
+GetResponse
+Client::get(const GetCommand& cmd) {
+    GetOperation gop(cmd);
+    gop.run(*this);
+    return gop.response();
+}
+
+TouchResponse
+Client::touch(const TouchCommand& cmd) {
+    TouchOperation top(cmd);
+    top.run(*this);
+    return top.response();
+}
+
+StoreResponse
+Client::upsert(const StoreCommand& cmd) {
+    StoreOperation sop(cmd);
+    sop.mode(LCB_SET);
+    sop.run(*this);
+    return sop.response();
+}
+
+StoreResponse
+Client::add(const StoreCommand& cmd) {
+    StoreOperation sop(cmd);
+    sop.mode(LCB_ADD);
+    sop.run(*this);
+    return sop.response();
+}
+
+StoreResponse
+Client::replace(const StoreCommand& cmd) {
+    StoreOperation sop(cmd);
+    sop.mode(LCB_REPLACE);
+    sop.run(*this);
+    return sop.response();
+}
+
+RemoveResponse
+Client::remove(const RemoveCommand& cmd) {
+    RemoveOperation rop(cmd);
+    rop.run(*this);
+    return rop.response();
+}
+
+CounterResponse
+Client::counter(const CounterCommand& cmd) {
+    CounterOperation cop(cmd);
+    cop.run(*this);
+    return cop.response();
+}
+
+StatsResponse
+Client::stats(const std::string& key) {
+    StatsCommand cmd(key);
+    StatsResponse res;
+    lcb_sched_enter(instance);
+    Status rc = lcb_stats3(instance, &res, &cmd);
+    if (!rc) {
+        return Response::setcode(res, rc);
+    } else {
+        lcb_sched_leave(instance);
+        wait();
+        return res;
+    }
+}
+
+UnlockResponse
+Client::unlock(const UnlockCommand& cmd) {
+    UnlockOperation uop(cmd);
+    uop.run(*this);
+    return uop.response();
 }
 
 void
@@ -150,13 +224,12 @@ StatsResponse::init(const lcb_RESPBASE *resp)
     }
 
     lcb_RESPSTATS *rs = (lcb_RESPSTATS *)resp;
-    map<string,map<string,string> >::iterator iter;
-    string server = rs->server;
-    string key((const char*)rs->key, rs->nkey);
-    string value((const char *)rs->value, rs->nvalue);
-    iter = stats.find(key);
+    std::string server = rs->server;
+    std::string key((const char*)rs->key, rs->nkey);
+    std::string value((const char *)rs->value, rs->nvalue);
+    auto iter = stats.find(key);
     if (iter == stats.end()) {
-        stats[key] = map<string,string>();
+        stats[key] = std::map<std::string,std::string>();
     }
     stats[key][server] = value;
 }
@@ -189,66 +262,11 @@ const ObserveResponse::ServerReply&
 ObserveResponse::master_reply() const
 {
     static ServerReply dummy;
-    vector<ServerReply>::const_iterator ii;
-    for (ii = sinfo.begin(); ii != sinfo.end(); ii++) {
+    for (auto ii = sinfo.begin(); ii != sinfo.end(); ii++) {
         if (ii->master) {
             return *ii;
         }
     }
     return dummy;
 }
-
-BatchContext::BatchContext(Client& h) : entered(false), parent(h)
-{
-    reset();
-}
-
-BatchContext::~BatchContext() {
-    if (entered) {
-        bail();
-    }
-
-    map<string,GetOperation*>::iterator ii;
-    for (ii = resps.begin(); ii != resps.end(); ii++) {
-        delete ii->second;
-    }
-}
-
-void
-BatchContext::bail() {
-    entered = false;
-    lcb_sched_fail(parent.getLcbt());
-}
-
-void
-BatchContext::submit() {
-    entered = false;
-    parent.remaining += m_remaining;
-    lcb_sched_leave(parent.getLcbt());
-}
-
-void
-BatchContext::reset() {
-    entered = true;
-    m_remaining = 0;
-    lcb_sched_enter(parent.getLcbt());
-}
-
-Status
-BatchContext::get(const string& key) {
-    GetOperation *cmd = new GetOperation(key);
-    resps[key] = cmd;
-    return cmd->schedule(*this);
-}
-
-const GetResponse&
-BatchContext::valueFor(const string& s)
-{
-    static GetResponse dummy;
-    GetOperation *op = resps[s];
-    if (op != NULL) {
-        return op->response();
-    } else {
-        return dummy;
-    }
-}
+} // namespace Couchbase

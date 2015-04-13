@@ -10,6 +10,7 @@ LCB_CXX_IMPL_SCHEDFUNC(RemoveOperation, lcb_remove3)
 LCB_CXX_IMPL_SCHEDFUNC(TouchOperation, lcb_touch3)
 LCB_CXX_IMPL_SCHEDFUNC(CounterOperation, lcb_counter3)
 LCB_CXX_IMPL_SCHEDFUNC(StoreOperation, lcb_store3)
+LCB_CXX_IMPL_SCHEDFUNC(UnlockOperation, lcb_unlock3)
 
 template <> inline
 Operation<StoreCommand,Response>::Operation(lcb_storage_t op) : StoreCommand(op) {

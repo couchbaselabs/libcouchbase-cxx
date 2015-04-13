@@ -32,6 +32,9 @@ int main(int argc, char **argv)
     auto sres = scmd.run(h);
     cout << "Got status for store. Cas=" << std::hex << sres.cas() << endl;
 
+    //! don't use implicit op
+    sres = h.upsert(scmd);
+
     //! Use a command to retrieve an item
     GetOperation cmd("foo");
     cmd.run(h);

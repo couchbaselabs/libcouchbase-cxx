@@ -13,8 +13,5 @@ ELSE()
     SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 ENDIF()
 
-ADD_LIBRARY(couchbase++ ${PROJECT_SOURCE_DIR}/src/lcb++.cpp)
-TARGET_LINK_LIBRARIES(couchbase++ couchbase)
-
 ADD_EXECUTABLE(example ${PROJECT_SOURCE_DIR}/example.cpp)
-TARGET_LINK_LIBRARIES(example couchbase++)
+TARGET_LINK_LIBRARIES(example couchbase)
