@@ -73,6 +73,7 @@ inline ostream& operator<< (ostream& os, const Couchbase::Status& obj) {
 
 namespace Couchbase {
 //! Base class for all commands.
+template <typename T>
 class Command {
 public:
     //! Set the key for the command
@@ -80,12 +81,12 @@ public:
     //! @param len the size of the key
     //! @note The buffer must remain valid until the operation has been
     //! scheduled.
-    void key(const char *buf, size_t len) { LCB_CMD_SET_KEY(&m_base, buf, len); }
+    void key(const char *buf, size_t len) { LCB_CMD_SET_KEY(&m_cmd, buf, len); }
     void key(const char *buf) { key(buf, strlen(buf)); }
     void key(const std::string& s) { key(s.c_str(), s.size()); }
 
-    const char *get_keybuf() const { return (const char *)m_base.key.contig.bytes; }
-    size_t get_keylen() const { return m_base.key.contig.nbytes; }
+    const char *get_keybuf() const { return (const char *)m_cmd.key.contig.bytes; }
+    size_t get_keylen() const { return m_cmd.key.contig.nbytes; }
 
     //! @brief Set the expiry for the command.
     //! @param n Expiry in seconds, and is either an offset in seconds from the
@@ -93,44 +94,41 @@ public:
     //! the number of seconds exceeds thirty days.
     //! @note Not all operations accept expiration. In these cases it will
     //!       be ignored.
-    void expiry(unsigned n) { m_base.exptime = n; }
+    void expiry(unsigned n) { m_cmd.exptime = n; }
 
     //! @brief Set the CAS for the command.
     //! The CAS is typically obtained by the result of another operation.
     //! @note Not all operations accept a CAS.
     //! @param casval the CAS
-    void cas(uint64_t casval) { m_base.cas = casval; }
-    const lcb_CMDBASE* asCmdBase() const { return &m_base; }
+    void cas(uint64_t casval) { m_cmd.cas = casval; }
+    const lcb_CMDBASE* asCmdBase() const { return (const lcb_CMDBASE*)&m_cmd; }
     Command() { memset(this, 0, sizeof *this); }
-
-    LCB_CXX_CMD_IS(lcb_CMDBASE, m_base)
-
+    const T* operator&() const { return &m_cmd; }
 protected:
-    union { LCB_CXX_UREQUESTS };
+    T m_cmd;
 };
 
 //! @class GetCommand
 //! @brief Command structure for retrieving items
-class GetCommand : public Command {
+class GetCommand : public Command<lcb_CMDGET> {
 public:
     LCB_CXX_CMD_CTOR(GetCommand)
-    LCB_CXX_CMD_IS(lcb_CMDGET, m_get)
     //! @brief Make this get operation be a get-and-lock operation
     //! Set this value to the time the lock will be held. Operations to mutate
     //! the key while the lock is still held on the server will fail. You may
     //! unlock the item using @ref UnlockCommand.
-    void locktime(unsigned n) { expiry(n); m_get.lock = 1; }
+    void locktime(unsigned n) { expiry(n); m_cmd.lock = 1; }
 };
 
 //! @brief Command structure for mutating/storing items
-class StoreCommand : public Command {
+class StoreCommand : public Command<lcb_CMDSTORE> {
 public:
     //! @brief Create a new storage operation.
     //! @param op Type of mutation to perform.
     //! The default is @ref LCB_SET which unconditionally stores the item
 
     StoreCommand(lcb_storage_t op = LCB_SET) : Command() {
-        m_store.operation = op;
+        m_cmd.operation = op;
     }
 
     StoreCommand(const std::string& key, const std::string& value, lcb_storage_t mode = LCB_SET) {
@@ -146,14 +144,14 @@ public:
     }
     //! @brief Explicitly set the mutation type
     //! @param op the mutation type.
-    void mode(lcb_storage_t op) { m_store.operation = op; }
+    void mode(lcb_storage_t op) { m_cmd.operation = op; }
 
     //! @brief Set the value to be stored.
     //! @param b Buffer
     //! @param n Buffer length
     //! @note The buffer must remain valid until the operation has been
     //!       scheduled.
-    void value(const void *b, size_t n) { LCB_CMD_SET_VALUE(&m_store, b, n); }
+    void value(const void *b, size_t n) { LCB_CMD_SET_VALUE(&m_cmd, b, n); }
     void value(const char *s) { value(s, strlen(s)); }
     void value(const std::string& s) { value(s.c_str(), s.size()); }
 
@@ -163,64 +161,57 @@ public:
     //!          determine the higher level datatype stored under the item.
     //!          Ensure to comply with these rules if inter-operability with
     //!          them is important.
-    void itemflags(uint32_t f) { m_store.flags = f; }
-    LCB_CXX_CMD_IS(lcb_CMDSTORE, m_store);
+    void itemflags(uint32_t f) { m_cmd.flags = f; }
 };
 
 //! Command structure for atomic counter operations.
 //! This command treats a value as a number (the value must be formatted as a
 //! series of ASCII digis).
-class CounterCommand : public Command {
+class CounterCommand : public Command<lcb_CMDCOUNTER> {
 public:
     //! Initialize the command.
     //! @param delta the delta to add to the value. If negative, the value is
     //! decremented.
-    CounterCommand(int64_t delta = 1) : Command() { m_arith.delta = delta; }
+    CounterCommand(int64_t delta = 1) : Command() { m_cmd.delta = delta; }
 
     //! Provide a default value in case the item does not exist
     //! @param d the default value. If the item does not exist, this value
     //! will be used, and the delta value will not be applied. If the item
     //! does exist, this value will be ignored.
-    void deflval(uint64_t d) { m_arith.initial = d; m_arith.create = 1; }
+    void deflval(uint64_t d) { m_cmd.initial = d; m_cmd.create = 1; }
 
     //! Explicitly set the delta
     //! @param delta the delta to add (or subtract) to/from the current value.
-    void delta(int64_t delta) { m_arith.delta = delta; }
-    LCB_CXX_CMD_IS(lcb_CMDCOUNTER, m_arith);
+    void delta(int64_t delta) { m_cmd.delta = delta; }
 };
 
 //! Command structure for _removing_ items from the cluster.
-class RemoveCommand : public Command {
+class RemoveCommand : public Command<lcb_CMDREMOVE> {
 public:
     LCB_CXX_CMD_CTOR(RemoveCommand)
-    LCB_CXX_CMD_IS(lcb_CMDREMOVE, m_base)
 };
 
-class StatsCommand : public Command {
+class StatsCommand : public Command<lcb_CMDSTATS> {
 public:
     LCB_CXX_CMD_CTOR(StatsCommand)
-    LCB_CXX_CMD_IS(lcb_CMDSTATS, m_stats)
 };
 
-class TouchCommand : public Command {
+class TouchCommand : public Command<lcb_CMDTOUCH> {
 public:
     LCB_CXX_CMD_CTOR(TouchCommand)
-    LCB_CXX_CMD_IS(lcb_CMDTOUCH, m_touch)
 };
 
-class UnlockCommand : public Command {
+class UnlockCommand : public Command<lcb_CMDUNLOCK> {
 public:
     LCB_CXX_CMD_CTOR(UnlockCommand)
-    LCB_CXX_CMD_IS(lcb_CMDUNLOCK, m_unlock)
 };
 
-class ObserveCommand : public Command {
+class ObserveCommand : public Command<lcb_CMDOBSERVE> {
 public:
     LCB_CXX_CMD_CTOR(ObserveCommand)
-    LCB_CXX_CMD_IS(lcb_CMDOBSERVE, m_obs);
     void master_only(bool val=true) {
-        if (val) { m_obs.cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY; }
-        else { m_obs.cmdflags &= ~LCB_CMDOBSERVE_F_MASTER_ONLY; }
+        if (val) { m_cmd.cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY; }
+        else { m_cmd.cmdflags &= ~LCB_CMDOBSERVE_F_MASTER_ONLY; }
     }
 };
 
@@ -419,7 +410,6 @@ public:
     inline const GetResponse& operator[](const std::string&s) { return valueFor(s); }
     inline lcb_t getLcbt() const;
 private:
-    friend class Command;
     bool entered;
     size_t m_remaining;
     Client& parent;
@@ -476,7 +466,6 @@ public:
 private:
     friend class BatchContext;
     friend class DurabilityContext;
-    inline Status schedule(const Command&, Response*, lcb_CALLBACKTYPE op);
     lcb_t instance;
     size_t remaining;
     Client(Client&);
@@ -491,7 +480,7 @@ private:
 //!
 //! The operation class is simply a "subclass" of the command structure with
 //! a placeholder structure for the response.
-template <typename C=Command, typename R=Response>
+template <typename C=Command<lcb_CMDBASE>, typename R=Response>
 class Operation : public C {
 protected:
     typedef C _Cmdcls;

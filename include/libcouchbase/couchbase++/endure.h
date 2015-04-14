@@ -67,7 +67,7 @@ public:
 };
 
 //! This class is used to perform a single durability operation
-class DurabilityOperation : public Operation<Command, EndureResponse> {
+class DurabilityOperation : public Operation<Command<lcb_CMDENDURE>, EndureResponse> {
 public:
     //! Create the operation using the result of a previous operation
     //! @param op a @ref StoreOperation
