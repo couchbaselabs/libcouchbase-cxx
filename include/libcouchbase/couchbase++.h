@@ -494,7 +494,7 @@ private:
     friend class DurabilityContext;
     lcb_t m_instance;
     size_t remaining;
-    Client(Client&);
+    Client(Client&) = delete;
 };
 
 //! @class Operation
