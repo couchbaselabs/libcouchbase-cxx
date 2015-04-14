@@ -219,8 +219,10 @@ public:
 class Client;
 
 //! @brief Base class for response objects.
-struct ResponseBase {
-    Internal::uResponses u;
+
+template <typename T=lcb_RESPBASE>
+class Response {
+public:
     //! Get status
     //! @return the status of the operation.
     Status status() const { return u.base.rc; }
@@ -239,30 +241,34 @@ struct ResponseBase {
     uint64_t cas() const { return u.base.cas; }
 
     void fail(Status& rv) { u.base.rc = rv; }
-};
 
-class Response : public ResponseBase {
-    friend class Client;
-
-public:
     Response() {}
-    template <class T> static T& setcode(T& r, Status& c) {
+    template <class D> static D& setcode(D& r, Status& c) {
         r.u.base.rc = c;
         return r;
     }
+
     virtual void init(const lcb_RESPBASE *res) { u.base = *res; }
     virtual bool done() const { return true; }
     virtual ~Response() {}
-private:
+protected:
+    union {
+        lcb_RESPBASE base;
+        T resp;
+    } u;
 };
 
-typedef Response StoreResponse;
-typedef Response RemoveResponse;
-typedef Response TouchResponse;
-typedef Response UnlockResponse;
+namespace Internal {
+typedef Response<lcb_RESPBASE> BaseResponse;
+}
+
+typedef Response<lcb_RESPSTORE> StoreResponse;
+typedef Response<lcb_RESPREMOVE> RemoveResponse;
+typedef Response<lcb_RESPTOUCH> TouchResponse;
+typedef Response<lcb_RESPUNLOCK> UnlockResponse;
 
 //! @brief Response for @ref GetCommand requests
-class GetResponse : public Response {
+class GetResponse : public Response<lcb_RESPGET> {
 public:
     inline GetResponse();
     GetResponse(const GetResponse& other) { assign_first(other); }
@@ -277,10 +283,10 @@ public:
     //! @return a buffer holding the value of the buffer. This buffer is valid
     //!         until the response is destroyed or the ::clear() function is
     //!         explicitly called.
-    const char* valuebuf() const { return (const char *)u.get.value; }
+    const char* valuebuf() const { return (const char *)u.resp.value; }
 
     //! Gets the length of the value
-    size_t valuesize() const { return u.get.nvalue; }
+    size_t valuesize() const { return u.resp.nvalue; }
 
     //! Copies the contents of the value into a std::string
     inline void value(std::string& s) const;
@@ -291,7 +297,7 @@ public:
     std::string value() const { std::string s; value(s); return s; }
 
     //! Get the flags of the item. See StoreCommand::itemflags
-    uint32_t valueflags() const { return u.get.itmflags; }
+    uint32_t valueflags() const { return u.resp.itmflags; }
     uint32_t itemflags() const { return valueflags(); }
 
     //! @private
@@ -307,7 +313,7 @@ private:
     inline char *vbuf_refcnt();
 };
 
-class StatsResponse : public Response {
+class StatsResponse : public Response<lcb_RESPSTATS> {
 public:
     StatsResponse() : Response(), initialized(false), m_done(false) { }
     void init(const lcb_RESPBASE *resp);
@@ -318,17 +324,17 @@ private:
     bool m_done;
 };
 
-class CounterResponse : public Response {
+class CounterResponse : public Response<lcb_RESPCOUNTER> {
 public:
-    void init(const lcb_RESPBASE *res) { u.arith = *(lcb_RESPCOUNTER *)res; }
+    void init(const lcb_RESPBASE *res) { u.resp = *(lcb_RESPCOUNTER *)res; }
 
     //! Get the current counter value
     //! @returns the current counter value. This is the value after the
     //!          counter operation. Only valid if the operation succeeded.
-    uint64_t value() const { return u.arith.value; }
+    uint64_t value() const { return u.resp.value; }
 };
 
-class ObserveResponse : public Response {
+class ObserveResponse : public Response<lcb_RESPOBSERVE> {
 public:
     struct ServerReply {
         uint64_t cas;
@@ -413,7 +419,6 @@ private:
     bool entered;
     size_t m_remaining;
     Client& parent;
-    Response dummy;
     std::map<std::string,Operation<GetCommand,GetResponse>*> resps;
 };
 
@@ -480,7 +485,7 @@ private:
 //!
 //! The operation class is simply a "subclass" of the command structure with
 //! a placeholder structure for the response.
-template <typename C=Command<lcb_CMDBASE>, typename R=Response>
+template <typename C=Command<lcb_CMDBASE>, typename R=Response<lcb_RESPBASE>>
 class Operation : public C {
 protected:
     typedef C _Cmdcls;

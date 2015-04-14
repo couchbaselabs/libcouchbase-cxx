@@ -17,23 +17,21 @@ static inline void cbwrap(lcb_t instance, int cbtype, const lcb_RESPBASE *res)
 void
 Client::_dispatch(int cbtype, const lcb_RESPBASE *r)
 {
-    Response *resp;
-
     if (cbtype == LCB_CALLBACK_ENDURE) {
         if (r->rflags & LCB_RESP_F_FINAL) {
             remaining--;
             breakout();
         } else {
-            DurabilityContext *ctx = reinterpret_cast<DurabilityContext*>(r->cookie);
-            resp = ctx->find_response(r);
+            auto *ctx = reinterpret_cast<DurabilityContext*>(r->cookie);
+            auto resp = ctx->find_response(r);
             resp->init(r);
         }
         return;
     }
 
-    resp = reinterpret_cast<Response*>(r->cookie);
-    resp->init(r);
-    if (resp->done()) {
+    auto *bresp = reinterpret_cast<Internal::BaseResponse*>(r->cookie);
+    bresp->init(r);
+    if (bresp->done()) {
         remaining--;
         breakout();
     }
@@ -140,7 +138,7 @@ Client::stats(const std::string& key) {
     lcb_sched_enter(instance);
     Status rc = lcb_stats3(instance, &res, &cmd);
     if (!rc) {
-        return Response::setcode(res, rc);
+        return StatsResponse::setcode(res, rc);
     } else {
         lcb_sched_leave(instance);
         wait();
@@ -158,19 +156,19 @@ Client::unlock(const UnlockCommand& cmd) {
 void
 GetResponse::init(const lcb_RESPBASE *resp)
 {
-    u.get = *(lcb_RESPGET *)resp;
+    u.resp = *(lcb_RESPGET *)resp;
     if (status().success()) {
-        if (u.get.bufh) {
-            lcb_backbuf_ref((lcb_BACKBUF) u.get.bufh);
-        } else if (u.get.nvalue) {
-            char *tmp = new char[u.get.nvalue + sizeof(size_t)];
-            u.get.value = tmp;
+        if (u.resp.bufh) {
+            lcb_backbuf_ref((lcb_BACKBUF) u.resp.bufh);
+        } else if (u.resp.nvalue) {
+            char *tmp = new char[u.resp.nvalue + sizeof(size_t)];
+            u.resp.value = tmp;
             size_t rc = 1;
             memcpy(vbuf_refcnt(), &rc, sizeof rc);
         }
     } else {
-        u.get.bufh = NULL;
-        u.get.value = NULL;
+        u.resp.bufh = NULL;
+        u.resp.value = NULL;
     }
 }
 
@@ -178,26 +176,26 @@ void
 GetResponse::clear()
 {
     if (hasSharedBuffer()) {
-        lcb_backbuf_unref((lcb_BACKBUF)u.get.bufh);
+        lcb_backbuf_unref((lcb_BACKBUF)u.resp.bufh);
     } else if (hasAllocBuffer()) {
         size_t rc;
         memcpy(&rc, vbuf_refcnt(), sizeof rc);
         if (rc == 1) {
-            delete[] (char *)u.get.value;
+            delete[] (char *)u.resp.value;
         } else {
             rc--;
             memcpy(vbuf_refcnt(), &rc, sizeof rc);
         }
     }
-    u.get.value = NULL;
-    u.get.nvalue = 0;
-    u.get.bufh = NULL;
+    u.resp.value = NULL;
+    u.resp.nvalue = 0;
+    u.resp.bufh = NULL;
 }
 
 void GetResponse::assign_first(const GetResponse& other) {
-    u.get = other.u.get;
+    u.resp = other.u.resp;
     if (hasSharedBuffer()) {
-        lcb_backbuf_ref((lcb_BACKBUF)u.get.bufh);
+        lcb_backbuf_ref((lcb_BACKBUF)u.resp.bufh);
     } else if (hasAllocBuffer()) {
         size_t rc;
         memcpy(&rc, vbuf_refcnt(), sizeof rc);

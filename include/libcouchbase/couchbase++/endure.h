@@ -38,32 +38,32 @@ public:
 };
 
 //! Response received for durability operations
-class EndureResponse : public Response {
+class EndureResponse : public Response<lcb_RESPENDURE> {
 public:
     //! @private
-    void init(const lcb_RESPBASE *res) { u.endure = *(lcb_RESPENDURE*)res; }
+    void init(const lcb_RESPBASE *res) { u.resp = *(lcb_RESPENDURE*)res; }
 
     //! Check if the item was persisted on the master node's storage
     //! @return true if the item was persisted to the master node
-    bool on_master_storage() const { return u.endure.persisted_master ? true : false; }
+    bool on_master_storage() const { return u.resp.persisted_master ? true : false; }
 
     //! Check whether the item exists on the master at all. If this is false
     //! then the item was either modified or the cluster has failed over
     //! @return true if the item exists on the master; false otherwise
-    bool on_master_ram() const { return u.endure.exists_master ? true : false; }
+    bool on_master_ram() const { return u.resp.exists_master ? true : false; }
 
     //! Return the number of observe commands sent. This is mainly for
     //! informational/debugging purposes
     //! @return the number of `OBSERVE` commands sent to each server
-    size_t probes() const { return u.endure.nresponses; }
+    size_t probes() const { return u.resp.nresponses; }
 
     //! Get the number of nodes to which the item was actually persisted
     //! @return the number of nodes to which the mutation was persisted
-    size_t persisted() const { return u.endure.npersisted; }
+    size_t persisted() const { return u.resp.npersisted; }
 
     //! Get the number of nodes to which the item was replicated
     //! @return the number of replicas containing this mutation.
-    size_t replicate() const { return u.endure.nreplicated; }
+    size_t replicate() const { return u.resp.nreplicated; }
 };
 
 //! This class is used to perform a single durability operation
@@ -173,15 +173,15 @@ DurabilityOperation::run(Client& h)
     Status st;
     DurabilityContext ctx(h, DurabilityOptions(-1,-1), st);
     if (!st) {
-        return Response::setcode(res, st);
+        return EndureResponse::setcode(res, st);
     }
     st = ctx.addop(*this);
     if (!st) {
-        return Response::setcode(res, st);
+        return EndureResponse::setcode(res, st);
     }
     st = ctx.submit();
     if (!st) {
-        return Response::setcode(res, st);
+        return EndureResponse::setcode(res, st);
     }
     h.wait();
     return res;

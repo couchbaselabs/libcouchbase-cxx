@@ -15,19 +15,7 @@
 
 namespace Couchbase {
 class Client;
-class Response;
 class Status;
 class BatchContext;
 template <typename C, typename R> class Operation;
-
-namespace Internal {
-typedef union {
-    lcb_RESPGET get;
-    lcb_RESPBASE base;
-    lcb_RESPCOUNTER arith;
-    lcb_RESPSERVERBASE servers;
-    lcb_RESPOBSERVE obs;
-    lcb_RESPENDURE endure;
-} uResponses;
-}
 }

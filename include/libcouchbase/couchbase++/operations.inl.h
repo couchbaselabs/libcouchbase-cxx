@@ -13,7 +13,7 @@ LCB_CXX_IMPL_SCHEDFUNC(StoreOperation, lcb_store3)
 LCB_CXX_IMPL_SCHEDFUNC(UnlockOperation, lcb_unlock3)
 
 template <> inline
-Operation<StoreCommand,Response>::Operation(lcb_storage_t op) : StoreCommand(op) {
+Operation<StoreCommand,StoreResponse>::Operation(lcb_storage_t op) : StoreCommand(op) {
 }
 
 template <> inline
@@ -27,12 +27,12 @@ Status ObserveOperation::scheduleLcb(lcb_t instance) {
     else { mctx->fail(mctx); return st; }
 }
 
-template <typename A, typename B> inline B
-Operation<A,B>::run(Client& client) {
+template <typename C, typename R> inline R
+Operation<C,R>::run(Client& client) {
     BatchContext b(client);
     Status st = schedule(b);
     if (!st) {
-        return Response::setcode(res, st);
+        return R::setcode(res, st);
     }
     if (st) {
         b.submit();
@@ -40,14 +40,14 @@ Operation<A,B>::run(Client& client) {
         return res;
     } else {
         b.bail();
-        return Response::setcode(res, st);
+        return R::setcode(res, st);
     }
 }
 
 GetResponse::GetResponse() : Response() {
-    u.get.bufh = NULL;
-    u.get.value = NULL;
-    u.get.nvalue = 0;
+    u.resp.bufh = NULL;
+    u.resp.value = NULL;
+    u.resp.nvalue = 0;
 }
 
 GetResponse& GetResponse::operator=(const GetResponse& other) {
@@ -58,11 +58,11 @@ GetResponse& GetResponse::operator=(const GetResponse& other) {
 
 bool
 GetResponse::hasSharedBuffer() const {
-    return u.get.bufh != NULL && u.get.value != NULL;
+    return u.resp.bufh != NULL && u.resp.value != NULL;
 }
 bool
 GetResponse::hasAllocBuffer() const {
-    return u.get.bufh == NULL && u.get.value != NULL;
+    return u.resp.bufh == NULL && u.resp.value != NULL;
 }
 char *
 GetResponse::vbuf_refcnt() {
