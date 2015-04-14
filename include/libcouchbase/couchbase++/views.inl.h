@@ -11,7 +11,7 @@ ViewCommand::ViewCommand(const char *design, const char *view) {
     this->ddoc = s_design.c_str();
     this->nddoc = s_design.length();
     this->handle = &vhptr;
-    this->callback = Internal::cbViewCallback;
+    this->callback = Internal::viewcb;
 }
 
 void
@@ -46,7 +46,7 @@ ViewCommand::options(const char *options) {
 
 
 void
-ViewCommand::addCmdFlag(int flag, bool enabled) {
+ViewCommand::add_cmd_flag(int flag, bool enabled) {
     if (enabled) {
         cmdflags |= flag;
     } else {
@@ -87,7 +87,7 @@ ViewMeta::ViewMeta(const lcb_RESPVIEWQUERY *resp) : htcode(-1) {
 
 ViewQuery::ViewQuery(Client& client, const ViewCommand& cmd, Status& status) :
     cli(client), m_meta(NULL) {
-    status = lcb_view_query(client.getLcbt(), this, &cmd);
+    status = lcb_view_query(client.handle(), this, &cmd);
     if (status) {
         vh = cmd.vhptr;
     }
@@ -115,7 +115,7 @@ ViewQuery::_dispatch(const lcb_RESPVIEWQUERY *resp) {
 void
 ViewQuery::stop() {
     if (active()) {
-        lcb_view_cancel(cli.getLcbt(), vh);
+        lcb_view_cancel(cli.handle(), vh);
         vh = NULL;
     }
 }

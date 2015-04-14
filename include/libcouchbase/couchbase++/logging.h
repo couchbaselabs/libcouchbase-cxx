@@ -35,7 +35,7 @@ public:
     }
 
     void install(Client& client) {
-        lcb_cntl(client.getLcbt(), LCB_CNTL_SET, LCB_CNTL_LOGGER,
+        lcb_cntl(client.handle(), LCB_CNTL_SET, LCB_CNTL_LOGGER,
             static_cast<lcb_logprocs_st*>(this));
     }
 

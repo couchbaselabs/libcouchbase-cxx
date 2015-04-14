@@ -41,7 +41,9 @@ public:
 class EndureResponse : public Response<lcb_RESPENDURE> {
 public:
     //! @private
-    void init(const lcb_RESPBASE *res) { u.resp = *(lcb_RESPENDURE*)res; }
+    void init(const lcb_RESPBASE *res) override {
+        u.resp = *(lcb_RESPENDURE*)res;
+    }
 
     //! Check if the item was persisted on the master node's storage
     //! @return true if the item was persisted to the master node
@@ -111,8 +113,8 @@ public:
     //!        be used further.
     DurabilityContext(Client& c, const DurabilityOptions& options, Status& status) : h(c){
         lcb_error_t rc = LCB_SUCCESS;
-        lcb_sched_enter(h.getLcbt());
-        mctx = lcb_endure3_ctxnew(h.getLcbt(), &options, &rc);
+        lcb_sched_enter(h.handle());
+        mctx = lcb_endure3_ctxnew(h.handle(), &options, &rc);
         status = rc;
         nremaining = 0;
     }
@@ -131,7 +133,7 @@ public:
     //! @return status code indicating if the operation was successfully
     //!         added.
     Status addop(const DurabilityOperation& op) {
-        Status st = mctx->addcmd(mctx, op.asCmdBase());
+        Status st = mctx->addcmd(mctx, op.as_basecmd());
         if (st) {
             nremaining++;
             resps[std::string(op.get_keybuf(), op.get_keylen())] =
@@ -148,7 +150,7 @@ public:
         Status st = mctx->done(mctx, this);
         mctx = NULL;
         if (st) {
-            lcb_sched_leave(h.getLcbt());
+            lcb_sched_leave(h.handle());
         }
         return st;
     }

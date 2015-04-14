@@ -105,7 +105,7 @@ public:
     //! @note Not all operations accept a CAS.
     //! @param casval the CAS
     void cas(uint64_t casval) { m_cmd.cas = casval; }
-    const lcb_CMDBASE* asCmdBase() const { return (const lcb_CMDBASE*)&m_cmd; }
+    const lcb_CMDBASE* as_basecmd() const { return (const lcb_CMDBASE*)&m_cmd; }
     Command() { memset(this, 0, sizeof *this); }
     const T* operator&() const { return &m_cmd; }
 protected:
@@ -220,8 +220,11 @@ class ObserveCommand : public Command<lcb_CMDOBSERVE> {
 public:
     LCB_CXX_CMD_CTOR(ObserveCommand)
     void master_only(bool val=true) {
-        if (val) { m_cmd.cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY; }
-        else { m_cmd.cmdflags &= ~LCB_CMDOBSERVE_F_MASTER_ONLY; }
+        if (val) {
+            m_cmd.cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY;
+        } else {
+            m_cmd.cmdflags &= ~LCB_CMDOBSERVE_F_MASTER_ONLY;
+        }
     }
 };
 
@@ -250,17 +253,22 @@ public:
     //! @return the CAS.
     uint64_t cas() const { return u.base.cas; }
 
-    void fail(Status& rv) { u.base.rc = rv; }
-
     Response() {}
+    virtual ~Response() {}
+
     template <class D> static D& setcode(D& r, Status& c) {
         r.u.base.rc = c;
         return r;
     }
 
-    virtual void init(const lcb_RESPBASE *res) { u.base = *res; }
-    virtual bool done() const { return true; }
-    virtual ~Response() {}
+    virtual void init(const lcb_RESPBASE *res) {
+        u.resp = *reinterpret_cast<const T*>(res);
+    }
+
+    virtual bool done() const {
+        return true;
+    }
+
 protected:
     union {
         lcb_RESPBASE base;
@@ -311,23 +319,23 @@ public:
     uint32_t itemflags() const { return valueflags(); }
 
     //! @private
-    void init(const lcb_RESPBASE *);
+    void init(const lcb_RESPBASE *) override;
 
 private:
     friend class Client;
     friend class ViewRow;
     void assign_first(const GetResponse& other);
 
-    inline bool hasSharedBuffer() const;
-    inline bool hasAllocBuffer() const;
+    inline bool has_shared_buffer() const;
+    inline bool has_alloc_buffer() const;
     inline char *vbuf_refcnt();
 };
 
 class StatsResponse : public Response<lcb_RESPSTATS> {
 public:
     StatsResponse() : Response(), initialized(false), m_done(false) { }
-    void init(const lcb_RESPBASE *resp);
-    bool done() const { return m_done; }
+    void init(const lcb_RESPBASE *resp) override;
+    bool done() const override { return m_done; }
     std::map<std::string,std::map<std::string,std::string> > stats;
 private:
     bool initialized;
@@ -336,7 +344,9 @@ private:
 
 class CounterResponse : public Response<lcb_RESPCOUNTER> {
 public:
-    void init(const lcb_RESPBASE *res) { u.resp = *(lcb_RESPCOUNTER *)res; }
+    void init(const lcb_RESPBASE *res) override {
+        u.resp = *(lcb_RESPCOUNTER *)res;
+    }
 
     //! Get the current counter value
     //! @returns the current counter value. This is the value after the
@@ -356,7 +366,7 @@ public:
     };
 
     ObserveResponse() : Response(), initialized(false) { }
-    void init(const lcb_RESPBASE *res);
+    void init(const lcb_RESPBASE *res) override;
     inline const ServerReply& master_reply() const;
     const std::vector<ServerReply>& all_replies() const { return sinfo; }
 private:
@@ -401,7 +411,7 @@ public:
     inline void bail();
 
     template <typename T> Status addop(T& op) {
-        Status rv = op.scheduleLcb(getLcbt());
+        Status rv = op.schedule_lcb(handle());
         if (rv) {
             m_remaining++;
         }
@@ -422,9 +432,9 @@ public:
     //! @return The GetResponse object for the given item. This is only valid
     //! if `s` was requested via e.g. `get(s)` _and_ #submit() has been called
     //! _and_ Client::wait() has been called.
-    inline const GetResponse& valueFor(const std::string& s);
-    inline const GetResponse& operator[](const std::string&s) { return valueFor(s); }
-    inline lcb_t getLcbt() const;
+    inline const GetResponse& value_for(const std::string& s);
+    inline const GetResponse& operator[](const std::string&s) { return value_for(s); }
+    inline lcb_t handle() const;
 private:
     bool entered;
     size_t m_remaining;
@@ -472,16 +482,17 @@ public:
 
     //! Retrieve the inner `lcb_t` for use with the C API.
     //! @return the C library handle
-    inline lcb_t getLcbt() const { return instance; }
+    inline lcb_t handle() const { return m_instance; }
+    inline lcb_t getLcb() const { return handle(); }
 
     //! @private
-    inline void breakout() { if (!remaining) { lcb_breakout(instance); } }
+    inline void breakout() { if (!remaining) { lcb_breakout(m_instance); } }
     //! @private
     inline void _dispatch(int, const lcb_RESPBASE*);
 private:
     friend class BatchContext;
     friend class DurabilityContext;
-    lcb_t instance;
+    lcb_t m_instance;
     size_t remaining;
     Client(Client&);
 };
@@ -498,16 +509,16 @@ private:
 template <typename C=Command<lcb_CMDBASE>, typename R=Response<lcb_RESPBASE>>
 class Operation : public C {
 protected:
-    typedef C _Cmdcls;
-    typedef R _Respcls;
+    typedef C CommandType;
+    typedef R ResponseType;
 
 public:
-    Operation() : _Cmdcls() {}
-    Operation(const _Cmdcls& c) : _Cmdcls(c) {}
-    Operation(_Cmdcls& c) : _Cmdcls(c) {}
-    Operation(const char *key) : _Cmdcls(key) {}
-    Operation(const char *key, size_t nkey) : _Cmdcls(key, nkey) {}
-    Operation(const std::string& key) : _Cmdcls(key) {}
+    Operation() : CommandType() {}
+    Operation(const CommandType& c) : CommandType(c) {}
+    Operation(CommandType& c) : CommandType(c) {}
+    Operation(const char *key) : CommandType(key) {}
+    Operation(const char *key, size_t nkey) : CommandType(key, nkey) {}
+    Operation(const std::string& key) : CommandType(key) {}
 
     Operation<StoreCommand,R>(const std::string& k, const std::string& v,
         lcb_storage_t mode = LCB_SET) : StoreCommand(k, v, mode) {
@@ -515,7 +526,6 @@ public:
     Operation<StoreCommand,R>(const char *k, const char *v, lcb_storage_t mode = LCB_SET) :
             StoreCommand(k, v, mode) {
     }
-    Operation<StoreCommand,R>(lcb_storage_t op) : StoreCommand(op) {}
 
     //! Get the response
     //! @return a reference to the inner response object
@@ -537,7 +547,7 @@ public:
     inline R run(Client& client);
 protected:
     friend class BatchContext;
-    inline Status scheduleLcb(lcb_t);
+    inline Status schedule_lcb(lcb_t);
     R res;
 };
 
@@ -569,16 +579,14 @@ typedef Operation<ObserveCommand,ObserveResponse> ObserveOperation;
 typedef Operation<UnlockCommand, UnlockResponse> UnlockOperation;
 
 #define LCB_CXX_STORE_CTORS(cName, mType) \
-    cName(const std::string k, const std::string& v) : StoreOperation(k, v, mType) { \
-    } \
-    cName(const char *k, const char *v) : StoreOperation(k, v, mType) { \
-    } \
+    cName(const std::string k, const std::string& v) : StoreOperation(k, v, mType) {} \
+    cName(const char *k, const char *v) : StoreOperation(k, v, mType) {} \
     cName(const char *key, size_t nkey, const char *value, size_t nvalue) : StoreOperation(mType) { \
         this->key(key, nkey); \
         this->value(value, nvalue); \
     }
 
-lcb_t BatchContext::getLcbt() const { return parent.getLcbt(); }
+lcb_t BatchContext::handle() const { return parent.handle(); }
 } // namespace Couchbase
 
 #include <libcouchbase/couchbase++/operations.inl.h>

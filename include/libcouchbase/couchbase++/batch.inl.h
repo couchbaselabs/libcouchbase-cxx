@@ -23,21 +23,21 @@ BatchContext::~BatchContext() {
 void
 BatchContext::bail() {
     entered = false;
-    lcb_sched_fail(parent.getLcbt());
+    lcb_sched_fail(parent.handle());
 }
 
 void
 BatchContext::submit() {
     entered = false;
     parent.remaining += m_remaining;
-    lcb_sched_leave(parent.getLcbt());
+    lcb_sched_leave(parent.handle());
 }
 
 void
 BatchContext::reset() {
     entered = true;
     m_remaining = 0;
-    lcb_sched_enter(parent.getLcbt());
+    lcb_sched_enter(parent.handle());
 }
 
 Status
@@ -48,7 +48,7 @@ BatchContext::get(const std::string& key) {
 }
 
 const GetResponse&
-BatchContext::valueFor(const std::string& s)
+BatchContext::value_for(const std::string& s)
 {
     static GetResponse dummy;
     GetOperation *op = resps[s];

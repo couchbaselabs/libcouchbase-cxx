@@ -45,36 +45,36 @@ Client::Client(const std::string& connstr, const std::string& passwd) : remainin
     if (!passwd.empty()) {
         cropts.v.v3.passwd = passwd.c_str();
     }
-    Status rv = lcb_create(&instance, &cropts);
+    Status rv = lcb_create(&m_instance, &cropts);
     if (rv != LCB_SUCCESS) {
         throw rv;
     }
-    lcb_set_cookie(instance, this);
+    lcb_set_cookie(m_instance, this);
 }
 
 Client::~Client()
 {
-    lcb_destroy(instance);
+    lcb_destroy(m_instance);
 }
 
 void
 Client::wait()
 {
-    lcb_wait3(instance, LCB_WAIT_NOCHECK);
+    lcb_wait3(m_instance, LCB_WAIT_NOCHECK);
 }
 
 Status
 Client::connect()
 {
-    Status ret = lcb_connect(instance);
+    Status ret = lcb_connect(m_instance);
     if (!ret.success()) {
         return ret;
     }
 
     wait();
-    ret = lcb_get_bootstrap_status(instance);
+    ret = lcb_get_bootstrap_status(m_instance);
     if (ret.success()) {
-        lcb_install_callback3(instance, LCB_CALLBACK_DEFAULT, Internal::cbwrap);
+        lcb_install_callback3(m_instance, LCB_CALLBACK_DEFAULT, Internal::cbwrap);
     }
     return ret;
 }
@@ -135,12 +135,12 @@ StatsResponse
 Client::stats(const std::string& key) {
     StatsCommand cmd(key);
     StatsResponse res;
-    lcb_sched_enter(instance);
-    Status rc = lcb_stats3(instance, &res, &cmd);
+    lcb_sched_enter(m_instance);
+    Status rc = lcb_stats3(m_instance, &res, &cmd);
     if (!rc) {
         return StatsResponse::setcode(res, rc);
     } else {
-        lcb_sched_leave(instance);
+        lcb_sched_leave(m_instance);
         wait();
         return res;
     }
@@ -175,9 +175,9 @@ GetResponse::init(const lcb_RESPBASE *resp)
 void
 GetResponse::clear()
 {
-    if (hasSharedBuffer()) {
+    if (has_shared_buffer()) {
         lcb_backbuf_unref((lcb_BACKBUF)u.resp.bufh);
-    } else if (hasAllocBuffer()) {
+    } else if (has_alloc_buffer()) {
         size_t rc;
         memcpy(&rc, vbuf_refcnt(), sizeof rc);
         if (rc == 1) {
@@ -194,9 +194,9 @@ GetResponse::clear()
 
 void GetResponse::assign_first(const GetResponse& other) {
     u.resp = other.u.resp;
-    if (hasSharedBuffer()) {
+    if (has_shared_buffer()) {
         lcb_backbuf_ref((lcb_BACKBUF)u.resp.bufh);
-    } else if (hasAllocBuffer()) {
+    } else if (has_alloc_buffer()) {
         size_t rc;
         memcpy(&rc, vbuf_refcnt(), sizeof rc);
         rc ++;

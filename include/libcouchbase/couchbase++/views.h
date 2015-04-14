@@ -12,7 +12,7 @@ namespace Couchbase {
 class ViewQuery;
 
 namespace Internal {
-extern "C" { static void cbViewCallback(lcb_t,int,const lcb_RESPVIEWQUERY*); }
+extern "C" { static void viewcb(lcb_t,int,const lcb_RESPVIEWQUERY*); }
 }
 
 // View API
@@ -26,7 +26,7 @@ public:
     //! Indicate if this is a spatial view
     //! @param enabled true if this is a spatial view, false otherwise
     inline void spatial(bool enabled = true) {
-        addCmdFlag(LCB_CMDVIEWQUERY_F_SPATIAL, enabled);
+        add_cmd_flag(LCB_CMDVIEWQUERY_F_SPATIAL, enabled);
     }
 
     //! Whether to include documents with each row.
@@ -34,7 +34,7 @@ public:
     //! field.
     //! @param enabled true if documents should be fetched alongside items
     void include_docs(bool enabled = true) {
-        addCmdFlag(LCB_CMDVIEWQUERY_F_INCLUDE_DOCS, enabled);
+        add_cmd_flag(LCB_CMDVIEWQUERY_F_INCLUDE_DOCS, enabled);
     }
 
     //! Do not parse rows into id, key, value and geometry fields.
@@ -43,7 +43,7 @@ public:
     //! is incompatible with #include_docs().
     //! @param enabled whether to enable this feature
     void no_parse_rows(bool enabled = true) {
-        addCmdFlag(LCB_CMDVIEWQUERY_F_NOROWPARSE, enabled);
+        add_cmd_flag(LCB_CMDVIEWQUERY_F_NOROWPARSE, enabled);
     }
 
     //! Add a simple view option. The option must be properly formatted
@@ -65,7 +65,7 @@ private:
     std::string s_design;
     friend class ViewQuery;
     lcb_VIEWHANDLE vhptr;
-    inline void addCmdFlag(int flag, bool enabled);
+    inline void add_cmd_flag(int flag, bool enabled);
 };
 
 class ViewRow {
@@ -180,7 +180,7 @@ private:
 
 namespace Internal {
 extern "C" {
-static void cbViewCallback(lcb_t, int, const lcb_RESPVIEWQUERY *resp) {
+static void viewcb(lcb_t, int, const lcb_RESPVIEWQUERY *resp) {
     ViewQuery *vq = reinterpret_cast<ViewQuery*>(resp->cookie);
     vq->_dispatch(resp);
 }
