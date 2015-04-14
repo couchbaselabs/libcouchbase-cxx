@@ -11,9 +11,13 @@
 #include <map>
 #include <vector>
 #include <iostream>
-#include <libcouchbase/couchbase++/internal.h>
 
 namespace Couchbase {
+
+class Client;
+class Status;
+class BatchContext;
+template <typename C, typename R> class Operation;
 
 //! @brief Status code. This wrapp an `lcb_error_t`.
 //!
@@ -107,6 +111,12 @@ public:
 protected:
     T m_cmd;
 };
+
+#define LCB_CXX_CMD_CTOR(name) \
+    name() : Command() {} \
+    name(const char *k) : Command() {key(k);} \
+    name(const char *k, size_t n) : Command() {key(k,n);} \
+    name(const std::string& s) : Command() {key(s);}
 
 //! @class GetCommand
 //! @brief Command structure for retrieving items
