@@ -61,7 +61,7 @@ public:
 
     operator bool() const { return success(); }
     operator lcb_error_t() const { return code; }
-//    operator const char * () const { return  description(); }
+    operator const char * () const { return  description(); }
     Status(const Status& other) : code(other.code) {}
 private:
     lcb_error_t code;
