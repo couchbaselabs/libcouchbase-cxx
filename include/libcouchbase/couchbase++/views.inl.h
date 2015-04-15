@@ -59,7 +59,7 @@ ViewRow::f2s(const void *b, size_t n, std::string& s) {
     if (n) { s.assign((const char*)b, n); }
 }
 
-ViewRow::ViewRow(const lcb_RESPVIEWQUERY *resp) {
+ViewRow::ViewRow(Client& c, const lcb_RESPVIEWQUERY *resp) {
     assert(! (resp->rflags & LCB_RESP_F_FINAL) );
     f2s(resp->key, resp->nkey, m_key);
     f2s(resp->value, resp->nvalue, m_value);
@@ -68,7 +68,7 @@ ViewRow::ViewRow(const lcb_RESPVIEWQUERY *resp) {
 
     if (resp->docresp) {
         m_hasdoc = true;
-        m_document.init((const lcb_RESPBASE*)resp->docresp);
+        m_document.handle_response(c, LCB_CALLBACK_GET, (const lcb_RESPBASE*)resp->docresp);
     }
 }
 
@@ -104,7 +104,7 @@ ViewQuery::~ViewQuery() {
 void
 ViewQuery::_dispatch(const lcb_RESPVIEWQUERY *resp) {
     if (!(resp->rflags & LCB_RESP_F_FINAL)) {
-        rows.push_back(ViewRow(resp));
+        rows.push_back(ViewRow(cli, resp));
     } else {
         m_meta = new ViewMeta(resp);
         vh = NULL;

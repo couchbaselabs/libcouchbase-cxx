@@ -231,10 +231,17 @@ public:
 
 class Client;
 
-//! @brief Base class for response objects.
+class Handler {
+public:
+    virtual void handle_response(Client& client, int cbtype, const lcb_RESPBASE *rb) = 0;
+    virtual bool done() const = 0;
+    virtual ~Handler() {}
+    Handler* as_cookie() { return this; }
+};
 
+//! @brief Base class for response objects.
 template <typename T=lcb_RESPBASE>
-class Response {
+class Response : public Handler {
 public:
     //! Get status
     //! @return the status of the operation.
@@ -261,11 +268,11 @@ public:
         return r;
     }
 
-    virtual void init(const lcb_RESPBASE *res) {
+    virtual void handle_response(Client&, int, const lcb_RESPBASE *res) override {
         u.resp = *reinterpret_cast<const T*>(res);
     }
 
-    virtual bool done() const {
+    virtual bool done() const override {
         return true;
     }
 
@@ -319,7 +326,7 @@ public:
     uint32_t itemflags() const { return valueflags(); }
 
     //! @private
-    void init(const lcb_RESPBASE *) override;
+    void handle_response(Client&, int, const lcb_RESPBASE *) override;
 
 private:
     friend class Client;
@@ -334,7 +341,7 @@ private:
 class StatsResponse : public Response<lcb_RESPSTATS> {
 public:
     StatsResponse() : Response(), initialized(false), m_done(false) { }
-    void init(const lcb_RESPBASE *resp) override;
+    void handle_response(Client&, int, const lcb_RESPBASE *resp) override;
     bool done() const override { return m_done; }
     std::map<std::string,std::map<std::string,std::string> > stats;
 private:
@@ -344,7 +351,7 @@ private:
 
 class CounterResponse : public Response<lcb_RESPCOUNTER> {
 public:
-    void init(const lcb_RESPBASE *res) override {
+    void handle_response(Client&, int, const lcb_RESPBASE *res) override {
         u.resp = *(lcb_RESPCOUNTER *)res;
     }
 
@@ -366,7 +373,7 @@ public:
     };
 
     ObserveResponse() : Response(), initialized(false) { }
-    void init(const lcb_RESPBASE *res) override;
+    void handle_response(Client&, int, const lcb_RESPBASE *res) override;
     inline const ServerReply& master_reply() const;
     const std::vector<ServerReply>& all_replies() const { return sinfo; }
 private:

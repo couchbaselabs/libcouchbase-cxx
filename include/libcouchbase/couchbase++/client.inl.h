@@ -17,20 +17,8 @@ static inline void cbwrap(lcb_t instance, int cbtype, const lcb_RESPBASE *res)
 void
 Client::_dispatch(int cbtype, const lcb_RESPBASE *r)
 {
-    if (cbtype == LCB_CALLBACK_ENDURE) {
-        if (r->rflags & LCB_RESP_F_FINAL) {
-            remaining--;
-            breakout();
-        } else {
-            auto *ctx = reinterpret_cast<DurabilityContext*>(r->cookie);
-            auto resp = ctx->find_response(r);
-            resp->init(r);
-        }
-        return;
-    }
-
-    auto *bresp = reinterpret_cast<Internal::BaseResponse*>(r->cookie);
-    bresp->init(r);
+    auto *bresp = reinterpret_cast<Handler*>(r->cookie);
+    bresp->handle_response(*this, cbtype, r);
     if (bresp->done()) {
         remaining--;
         breakout();
@@ -154,7 +142,7 @@ Client::unlock(const UnlockCommand& cmd) {
 }
 
 void
-GetResponse::init(const lcb_RESPBASE *resp)
+GetResponse::handle_response(Client&, int, const lcb_RESPBASE *resp)
 {
     u.resp = *(lcb_RESPGET *)resp;
     if (status().success()) {
@@ -205,10 +193,10 @@ void GetResponse::assign_first(const GetResponse& other) {
 }
 
 void
-StatsResponse::init(const lcb_RESPBASE *resp)
+StatsResponse::handle_response(Client& c, int t, const lcb_RESPBASE *resp)
 {
     if (!initialized) {
-        Response::init(resp);
+        Response::handle_response(c, t, resp);
     }
     if (resp->rc != LCB_SUCCESS) {
         if (u.base.rc == LCB_SUCCESS) {
@@ -233,7 +221,7 @@ StatsResponse::init(const lcb_RESPBASE *resp)
 }
 
 void
-ObserveResponse::init(const lcb_RESPBASE *res)
+ObserveResponse::handle_response(Client&, int, const lcb_RESPBASE *res)
 {
     if (res->rflags & LCB_RESP_F_FINAL) {
         return;

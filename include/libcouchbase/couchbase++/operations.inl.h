@@ -2,7 +2,7 @@
 namespace Couchbase {
 #define LCB_CXX_IMPL_SCHEDFUNC(tinst, lcbfunc) \
 template<>inline Status tinst::schedule_lcb(lcb_t instance) { \
-    return lcbfunc(instance, &res, &static_cast<tinst::CommandType>(*this)); \
+    return lcbfunc(instance, res.as_cookie(), &static_cast<tinst::CommandType>(*this)); \
 }
 
 LCB_CXX_IMPL_SCHEDFUNC(GetOperation, lcb_get3)

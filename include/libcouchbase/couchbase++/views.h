@@ -102,7 +102,7 @@ public:
 
 private:
     inline static void f2s(const void*, size_t, std::string&);
-    ViewRow(const lcb_RESPVIEWQUERY *resp);
+    ViewRow(Client&, const lcb_RESPVIEWQUERY *resp);
 
     std::string m_key;
     std::string m_value;

@@ -41,7 +41,7 @@ public:
 class EndureResponse : public Response<lcb_RESPENDURE> {
 public:
     //! @private
-    void init(const lcb_RESPBASE *res) override {
+    void handle_response(Client&, int, const lcb_RESPBASE *res) override {
         u.resp = *(lcb_RESPENDURE*)res;
     }
 
@@ -103,7 +103,7 @@ public:
 //! This class is similar to the @ref BatchContext (though not a subclass).
 //! Note that currently a DurabilityContext is mutually exclusive with a
 //! BatchContext
-class DurabilityContext {
+class DurabilityContext : public Handler {
 public:
     //! Create a new DurabilityContext
     //! @param c the client
@@ -122,6 +122,7 @@ public:
     //! Clear any pending operations. @see BatchContext#bail()
     void bail() {
         nremaining = 0;
+        is_done = false;
         if (mctx != NULL) {
             mctx->fail(mctx);
             mctx = NULL;
@@ -147,7 +148,7 @@ public:
     //! @return a status code which will contain any errors if the context
     //!         could not be scheduled.
     Status submit() {
-        Status st = mctx->done(mctx, this);
+        Status st = mctx->done(mctx, as_cookie());
         mctx = NULL;
         if (st) {
             lcb_sched_leave(h.handle());
@@ -155,11 +156,17 @@ public:
         return st;
     }
 
-    //! @private
-    EndureResponse *find_response(const lcb_RESPBASE *rb) {
-        std::string tmp((const char*)rb->key, rb->nkey);
-        return resps[tmp];
+    // Callback handling stuff:
+    void handle_response(Client& c, int cbtype, const lcb_RESPBASE *rb) override {
+        if (rb->rflags & LCB_RESP_F_FINAL) {
+            is_done = true;
+            return;
+        }
+        auto resp = resps[std::string((const char*)rb->key, rb->nkey)];
+        resp->handle_response(c, cbtype, rb);
     }
+
+    bool done() const override { return is_done; }
 
     ~DurabilityContext() { bail(); }
 private:
@@ -167,6 +174,7 @@ private:
     std::map<std::string, EndureResponse*> resps;
     size_t nremaining;
     lcb_MULTICMD_CTX *mctx;
+    bool is_done = false;
 };
 
 EndureResponse&
