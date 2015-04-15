@@ -111,22 +111,16 @@ public:
     //! @param status. Check this after the call to the constructor for any
     //!        errors. If status is not successful then this object must not
     //!        be used further.
-    DurabilityContext(Client& c, const DurabilityOptions& options, Status& status) : h(c){
-        lcb_error_t rc = LCB_SUCCESS;
-        lcb_sched_enter(h.handle());
-        mctx = lcb_endure3_ctxnew(h.handle(), &options, &rc);
-        status = rc;
-        nremaining = 0;
+    DurabilityContext(Client& c, const DurabilityOptions& options, Status& status)
+    : client(c), nremaining(0) {
+        status = client.mctx_endure(options, this, m_mctx);
     }
 
     //! Clear any pending operations. @see BatchContext#bail()
     void bail() {
         nremaining = 0;
         is_done = false;
-        if (mctx != NULL) {
-            mctx->fail(mctx);
-            mctx = NULL;
-        }
+        m_mctx.bail();
     }
 
     //! Adds an operation to this context
@@ -134,7 +128,7 @@ public:
     //! @return status code indicating if the operation was successfully
     //!         added.
     Status addop(const DurabilityOperation& op) {
-        Status st = mctx->addcmd(mctx, op.as_basecmd());
+        Status st = m_mctx.add(&op);
         if (st) {
             nremaining++;
             resps[std::string(op.get_keybuf(), op.get_keylen())] =
@@ -147,14 +141,7 @@ public:
     //! Client#wait().
     //! @return a status code which will contain any errors if the context
     //!         could not be scheduled.
-    Status submit() {
-        Status st = mctx->done(mctx, as_cookie());
-        mctx = NULL;
-        if (st) {
-            lcb_sched_leave(h.handle());
-        }
-        return st;
-    }
+    Status submit() { return m_mctx.done(); }
 
     // Callback handling stuff:
     void handle_response(Client& c, int cbtype, const lcb_RESPBASE *rb) override {
@@ -170,10 +157,10 @@ public:
 
     ~DurabilityContext() { bail(); }
 private:
-    Client& h;
+    Client& client;
+    Internal::MultiDurContext m_mctx;
     std::map<std::string, EndureResponse*> resps;
     size_t nremaining;
-    lcb_MULTICMD_CTX *mctx;
     bool is_done = false;
 };
 

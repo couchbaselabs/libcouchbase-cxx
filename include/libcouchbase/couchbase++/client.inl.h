@@ -141,6 +141,26 @@ Client::unlock(const UnlockCommand& cmd) {
     return uop.response();
 }
 
+Status
+Client::mctx_endure(const DurabilityOptions& opts,
+    Handler *handler, Internal::MultiDurContext& out)
+{
+    lcb_error_t rv = LCB_SUCCESS;
+    lcb_MULTICMD_CTX *mctx = lcb_endure3_ctxnew(m_instance, &opts, &rv);
+    if (mctx == NULL) {
+    } else {
+        out = std::move(Internal::MultiDurContext(mctx, handler, this));
+    }
+    return rv;
+}
+
+Status
+Client::mctx_observe(Handler *handler, Internal::MultiObsContext& out) {
+    lcb_MULTICMD_CTX *mctx = lcb_observe3_ctxnew(m_instance);
+    out = std::move(Internal::MultiObsContext(mctx, handler, this));
+    return Status();
+}
+
 void
 GetResponse::handle_response(Client&, int, const lcb_RESPBASE *resp)
 {

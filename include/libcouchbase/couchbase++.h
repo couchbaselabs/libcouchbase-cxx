@@ -17,6 +17,15 @@ namespace Couchbase {
 class Client;
 class Status;
 class BatchContext;
+class DurabilityOptions;
+
+namespace Internal {
+    template <typename T> class MultiContextT;
+    template<typename T> using MultiContext = MultiContextT<T>;
+    typedef MultiContext<lcb_CMDENDURE> MultiDurContext;
+    typedef MultiContext<lcb_CMDOBSERVE> MultiObsContext;
+}
+
 template <typename C, typename R> class Operation;
 
 //! @brief Status code. This wrapp an `lcb_error_t`.
@@ -373,7 +382,7 @@ public:
     };
 
     ObserveResponse() : Response(), initialized(false) { }
-    void handle_response(Client&, int, const lcb_RESPBASE *res) override;
+    inline void handle_response(Client&, int, const lcb_RESPBASE *res) override;
     inline const ServerReply& master_reply() const;
     const std::vector<ServerReply>& all_replies() const { return sinfo; }
 private:
@@ -520,6 +529,9 @@ public:
         return lcb_stats3(m_instance, handler->as_cookie(), cmd);
     }
 
+    Status mctx_endure(const DurabilityOptions&, Handler*, Internal::MultiDurContext&);
+    Status mctx_observe(Handler*, Internal::MultiObsContext&);
+
 private:
     friend class BatchContext;
     friend class DurabilityContext;
@@ -620,6 +632,7 @@ typedef Operation<UnlockCommand, UnlockResponse> UnlockOperation;
 lcb_t BatchContext::handle() const { return parent.handle(); }
 } // namespace Couchbase
 
+#include <libcouchbase/couchbase++/mctx.inl.h>
 #include <libcouchbase/couchbase++/operations.inl.h>
 
 namespace Couchbase {
@@ -641,7 +654,6 @@ public:
     LCB_CXX_STORE_CTORS(ReplaceOperation, LCB_REPLACE);
 };
 }
-
 #include <libcouchbase/couchbase++/endure.h>
 #include <libcouchbase/couchbase++/client.inl.h>
 #include <libcouchbase/couchbase++/batch.inl.h>

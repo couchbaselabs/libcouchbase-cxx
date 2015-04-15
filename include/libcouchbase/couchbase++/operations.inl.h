@@ -16,14 +16,16 @@ LCB_CXX_IMPL_SCHEDFUNC(UnlockOperation, schedule_unlock)
 
 template <> inline
 Status ObserveOperation::schedule_cli(Client& client) {
-    lcb_t instance = client.handle();
-    lcb_MULTICMD_CTX *mctx = lcb_observe3_ctxnew(instance);
-    if (!mctx) { return LCB_CLIENT_ENOMEM; }
-
-    const lcb_CMDOBSERVE *obscmd = &static_cast<ObserveCommand>(*this);
-    Status st = mctx->addcmd(mctx, reinterpret_cast<const lcb_CMDBASE*>(obscmd));
-    if (st.success()) { return mctx->done(mctx, &res); }
-    else { mctx->fail(mctx); return st; }
+    Internal::MultiObsContext obs;
+    Status st = client.mctx_observe(&res, obs);
+    if (!st) {
+        return st;
+    }
+    st = obs.add(&m_cmd);
+    if (!st) {
+        return st;
+    }
+    return obs.done();
 }
 
 template <typename C, typename R> inline R
