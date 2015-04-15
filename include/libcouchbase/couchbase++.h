@@ -240,9 +240,21 @@ public:
 
 class Client;
 
+//! Base handler class for handling/converting responses.
+//! This is a fairly low level class and is wrapped upon by higher functionality.
+//! The handler object is typically passed to one of the @ref Client schedule
+//! functions. Normally this is done transparently.
 class Handler {
 public:
+    //! Called for each response.
+    //! @param client the client
+    //! @param cbtype the type of response (one the `LCB_CALLBACK_*` constants)
+    //! @param rb the response object (as received from the C library). This may
+    //!        be cast to one of its subtypes.
     virtual void handle_response(Client& client, int cbtype, const lcb_RESPBASE *rb) = 0;
+
+    //! Indicate whether this is the final command for the request
+    //! @return true if done
     virtual bool done() const = 0;
     virtual ~Handler() {}
     Handler* as_cookie() { return this; }
