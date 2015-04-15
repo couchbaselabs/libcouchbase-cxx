@@ -418,7 +418,7 @@ public:
     inline void bail();
 
     template <typename T> Status addop(T& op) {
-        Status rv = op.schedule_lcb(handle());
+        Status rv = op.schedule_cli(parent);
         if (rv) {
             m_remaining++;
         }
@@ -496,6 +496,30 @@ public:
     inline void breakout() { if (!remaining) { lcb_breakout(m_instance); } }
     //! @private
     inline void _dispatch(int, const lcb_RESPBASE*);
+
+    //! @private
+    Status schedule_get(const lcb_CMDGET *cmd, Handler *handler) {
+        return lcb_get3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_store(const lcb_CMDSTORE *cmd, Handler *handler) {
+        return lcb_store3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_touch(const lcb_CMDTOUCH *cmd, Handler *handler) {
+        return lcb_touch3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_counter(const lcb_CMDCOUNTER *cmd, Handler *handler) {
+        return lcb_counter3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_remove(const lcb_CMDREMOVE *cmd, Handler *handler) {
+        return lcb_remove3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_unlock(const lcb_CMDUNLOCK *cmd, Handler *handler) {
+        return lcb_unlock3(m_instance, handler->as_cookie(), cmd);
+    }
+    Status schedule_stats(const lcb_CMDSTATS *cmd, Handler *handler) {
+        return lcb_stats3(m_instance, handler->as_cookie(), cmd);
+    }
+
 private:
     friend class BatchContext;
     friend class DurabilityContext;
@@ -554,7 +578,7 @@ public:
     inline R run(Client& client);
 protected:
     friend class BatchContext;
-    inline Status schedule_lcb(lcb_t);
+    inline Status schedule_cli(Client&);
     R res;
 };
 

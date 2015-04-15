@@ -1,19 +1,22 @@
 // Inline definitions for lcb++
 namespace Couchbase {
-#define LCB_CXX_IMPL_SCHEDFUNC(tinst, lcbfunc) \
-template<>inline Status tinst::schedule_lcb(lcb_t instance) { \
-    return lcbfunc(instance, res.as_cookie(), &static_cast<tinst::CommandType>(*this)); \
+
+#define LCB_CXX_IMPL_SCHEDFUNC(tinst, schedfunc) \
+template<>inline Status \
+tinst::schedule_cli(Client& client) { \
+    return client.schedfunc(&m_cmd, &res); \
 }
 
-LCB_CXX_IMPL_SCHEDFUNC(GetOperation, lcb_get3)
-LCB_CXX_IMPL_SCHEDFUNC(RemoveOperation, lcb_remove3)
-LCB_CXX_IMPL_SCHEDFUNC(TouchOperation, lcb_touch3)
-LCB_CXX_IMPL_SCHEDFUNC(CounterOperation, lcb_counter3)
-LCB_CXX_IMPL_SCHEDFUNC(StoreOperation, lcb_store3)
-LCB_CXX_IMPL_SCHEDFUNC(UnlockOperation, lcb_unlock3)
+LCB_CXX_IMPL_SCHEDFUNC(GetOperation, schedule_get)
+LCB_CXX_IMPL_SCHEDFUNC(RemoveOperation, schedule_remove)
+LCB_CXX_IMPL_SCHEDFUNC(TouchOperation, schedule_touch)
+LCB_CXX_IMPL_SCHEDFUNC(CounterOperation, schedule_counter)
+LCB_CXX_IMPL_SCHEDFUNC(StoreOperation, schedule_store)
+LCB_CXX_IMPL_SCHEDFUNC(UnlockOperation, schedule_unlock)
 
 template <> inline
-Status ObserveOperation::schedule_lcb(lcb_t instance) {
+Status ObserveOperation::schedule_cli(Client& client) {
+    lcb_t instance = client.handle();
     lcb_MULTICMD_CTX *mctx = lcb_observe3_ctxnew(instance);
     if (!mctx) { return LCB_CLIENT_ENOMEM; }
 
