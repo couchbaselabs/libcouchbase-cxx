@@ -544,6 +544,10 @@ public:
     Status mctx_endure(const DurabilityOptions&, Handler*, Internal::MultiDurContext&);
     Status mctx_observe(Handler*, Internal::MultiObsContext&);
 
+    void enter() { lcb_sched_enter(m_instance); }
+    void leave() { lcb_sched_leave(m_instance); }
+    void fail() { lcb_sched_fail(m_instance); }
+
 private:
     friend class BatchContext;
     friend class DurabilityContext;

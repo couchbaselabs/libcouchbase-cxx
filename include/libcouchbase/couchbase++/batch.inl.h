@@ -23,21 +23,21 @@ BatchContext::~BatchContext() {
 void
 BatchContext::bail() {
     entered = false;
-    lcb_sched_fail(parent.handle());
+    parent.fail();
 }
 
 void
 BatchContext::submit() {
     entered = false;
     parent.remaining += m_remaining;
-    lcb_sched_leave(parent.handle());
+    parent.leave();
 }
 
 void
 BatchContext::reset() {
     entered = true;
     m_remaining = 0;
-    lcb_sched_enter(parent.handle());
+    parent.enter();
 }
 
 Status

@@ -123,12 +123,14 @@ StatsResponse
 Client::stats(const std::string& key) {
     StatsCommand cmd(key);
     StatsResponse res;
-    lcb_sched_enter(m_instance);
+
+    enter();
     Status rc = lcb_stats3(m_instance, &res, &cmd);
     if (!rc) {
+        fail();
         return StatsResponse::setcode(res, rc);
     } else {
-        lcb_sched_leave(m_instance);
+        leave();
         wait();
         return res;
     }

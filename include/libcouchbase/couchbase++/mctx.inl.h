@@ -27,12 +27,12 @@ public:
     }
 
     Status done() {
-        lcb_sched_enter(client->handle());
+        client->enter();
         Status s = m_inner->done(m_inner, cookie->as_cookie());
         if (!s) {
-            lcb_sched_fail(client->handle());
+            client->fail();
         } else {
-            lcb_sched_leave(client->handle());
+            client->leave();
         }
         m_inner = NULL;
         return s;
