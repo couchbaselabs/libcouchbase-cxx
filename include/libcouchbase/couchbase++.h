@@ -708,7 +708,12 @@ public:
     inline lcb_t getLcb() const { return handle(); }
 
     //! @private
-    inline void breakout() { if (!remaining) { lcb_breakout(m_instance); } }
+    inline void breakout(bool force=false) {
+        if (!remaining || force) {
+            lcb_breakout(m_instance);
+        }
+    }
+
     //! @private
     inline void _dispatch(int, const lcb_RESPBASE*);
 
