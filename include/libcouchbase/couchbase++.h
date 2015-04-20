@@ -12,7 +12,6 @@
 #include <vector>
 #include <list>
 #include <iostream>
-
 #include <libcouchbase/couchbase++/forward.h>
 
 namespace Couchbase {
@@ -158,12 +157,17 @@ public:
     StoreCommand() : Command() {
         mode(M);
     }
-    StoreCommand(const std::string& key, const std::string& value) {
+    StoreCommand(const std::string& key, const std::string& value) : Command() {
         this->key(key); this->value(value); this->mode(M);
     }
-    StoreCommand(const char *key, const char *value) {
+    StoreCommand(const char *key, const char *value) : Command() {
         this->key(key); this->value(value); this->mode(M);
     }
+    StoreCommand(const char *key, size_t nkey, const char *value, size_t nvalue)
+    :Command() {
+        this->key(key, nkey); this->value(value, nvalue);
+    }
+
     //! @brief Explicitly set the mutation type
     //! @param op the mutation type.
     void mode(StoreMode op) { m_cmd.operation = op; }
