@@ -83,19 +83,19 @@ class ViewRow {
 public:
     //! Get the emitted key
     //! @return the emitted key as a string
-    const std::string& key() const { return m_key; }
+    const Buffer& key() const { return m_key; }
 
     //! Get the emitted value
     //! @return the emitted value as a string
-    const std::string& value() const { return m_value; }
+    const Buffer& value() const { return m_value; }
 
     //! Get the emitted geometry (only valid for GeoSpatial views)
     //! @return the GeoJSON, as a string
-    const std::string& geometry() const { return m_geometry; }
+    const Buffer& geometry() const { return m_geometry; }
 
     //! Get the document ID for the item (not applicable for reduce)
     //! @return the document ID.
-    const std::string& docid() const { return m_docid; }
+    const Buffer& docid() const { return m_docid; }
 
     //! Get the corresponding document.
     //! This returns a reference to the document. A document will only
@@ -105,21 +105,23 @@ public:
     //! @return A reference to a document
     const GetResponse& document() const { return m_document; }
 
+    inline void detatch();
+
     //! Indicates whether a GetResponse is available.
     //! @return true if there is a GetResponse
     //! @note a true return value does not indicate the contained document
     //! was fetched successfuly, just that it may be inspected.
     bool has_document() const { return m_hasdoc; }
-
 private:
-    inline static void f2s(const void*, size_t, std::string&);
+    inline char *detatch_buf(Buffer& tgt, char *tmp);
     ViewRow(Client&, const lcb_RESPVIEWQUERY *resp);
 
-    std::string m_key;
-    std::string m_value;
-    std::string m_geometry;
-    std::string m_id;
-    std::string m_docid;
+    std::shared_ptr<char> m_buf;
+    Buffer m_key;
+    Buffer m_value;
+    Buffer m_geometry;
+    Buffer m_docid;
+
     GetResponse m_document;
     bool m_hasdoc;
     friend class Client;
@@ -128,11 +130,15 @@ private:
 
 class ViewMeta {
 public:
-    std::string body;
-    std::string http;
-    Status rc;
-    short htcode;
+    const std::string& body() const { return m_body; }
+    const std::string& http_body() const { return m_http; }
+    Status status() const { return m_rc; }
+    short http_status() const { return m_htcode; }
 private:
+    std::string m_body;
+    std::string m_http;
+    Status m_rc;
+    short m_htcode;
     friend class ViewQuery;
     inline ViewMeta(const lcb_RESPVIEWQUERY *resp);
 };
@@ -140,20 +146,31 @@ private:
 
 namespace Internal { class ViewIterator; }
 
+class ViewHandler {
+public:
+    virtual void handle_row(ViewRow&& row, ViewQuery *query);
+    virtual void handle_final(ViewMeta&& meta);
+    virtual ~ViewHandler(){}
+};
+
 //! This class may be used to execute a view query and iterate over its
 //! results.
 class ViewQuery {
 public:
+    typedef std::function<void(ViewRow&&, ViewQuery*)> RowCallback;
+    typedef std::function<void(ViewMeta&&, ViewQuery*)> DoneCallback;
+
     //! Initialize the query object.
     //! @param client the client on which to issue the query
     //! @param cmd a populated command object
     //! @param status used to indicate any errors during the construction
     //!        of the query. If status is false (i.e. failure), then this object
     //!        must not be used further.
-    inline ViewQuery(Client& client, const ViewCommand& cmd, Status& status);
+    inline ViewQuery(Client& client, const ViewCommand& cmd, Status& status,
+        RowCallback rowcb = NULL, DoneCallback done_cb = NULL);
+
     inline ~ViewQuery();
     inline void _dispatch(const lcb_RESPVIEWQUERY *resp);
-
 
     //! @private
 
@@ -182,8 +199,10 @@ public:
 
 private:
     Client& cli;
-    ViewMeta *m_meta;
-    lcb_VIEWHANDLE vh;
+    ViewMeta *m_meta = NULL;
+    RowCallback m_rowcb = NULL;
+    DoneCallback m_donecb = NULL;
+    lcb_VIEWHANDLE vh = NULL;
     std::deque<ViewRow> rows;
     friend class Internal::ViewIterator;
     inline const ViewRow* next();

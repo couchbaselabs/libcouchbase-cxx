@@ -75,6 +75,38 @@ inline ostream& operator<< (ostream& os, const Couchbase::Status& obj) {
 }
 
 namespace Couchbase {
+
+// Simple buffer class
+class Buffer {
+public:
+    Buffer(const Buffer& other) : m_data(other.m_data), m_length(other.m_length) {}
+    Buffer(const void *buf, size_t len) : m_data(buf), m_length(len) {}
+    Buffer(){}
+
+    const char *data() const { return reinterpret_cast<const char*>(m_data); }
+    size_t length() const { return m_length; }
+    size_t size() const { return length(); }
+    bool empty() const { return length() == 0; }
+    std::string to_string() const {
+        return empty() ? "" : std::string(data(), length());
+    }
+    operator std::string() const {
+        return to_string();
+    }
+private:
+    const void *m_data = NULL;
+    size_t m_length = 0;
+};
+}
+
+namespace std {
+inline ostream& operator<<(ostream& os, const Couchbase::Buffer& obj) {
+    return os.write(obj.data(), obj.size());
+}
+}
+
+namespace Couchbase {
+
 //! Base class for all commands.
 template <typename T>
 class Command {
@@ -92,6 +124,8 @@ public:
     void key(const char *buf, size_t len) { LCB_CMD_SET_KEY(&m_cmd, buf, len); }
     void key(const char *buf) { key(buf, strlen(buf)); }
     void key(const std::string& s) { key(s.c_str(), s.size()); }
+    void key(const Buffer& buf) { key(buf.data(), buf.size()); }
+    Buffer key() const { return Buffer(keybuf(), keylen()); }
 
     const char *keybuf() const { return (const char *)m_cmd.key.contig.bytes; }
     size_t keylen() const { return m_cmd.key.contig.nbytes; }
@@ -427,7 +461,7 @@ public:
     //! Appends the contents of the value into a std::vector<char>
     inline void value(std::vector<char>&v) const;
 
-    std::string value() const { std::string s; value(s); return s; }
+    Buffer value() const { return Buffer(valuebuf(), valuesize()); }
 
     //! Get the flags of the item. See StoreCommand::itemflags
     uint32_t valueflags() const { return u.resp.itmflags; }

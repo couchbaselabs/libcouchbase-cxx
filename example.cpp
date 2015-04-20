@@ -110,5 +110,26 @@ int main(int argc, char **argv)
     if (!query.status()) {
         cerr << "Problem with query: " << query.status() << endl;
     }
+
+    cout << "Using async query.." << endl;
+    // Async
+    auto asyncQuery = ViewQuery(h, vCmd, status,
+        [](ViewRow&& row, ViewQuery*) {
+        cout << "Key: " << row.key() << endl;
+        cout << "Value: " << row.value() << endl;
+        cout << "DocID: " << row.docid() << endl;
+
+        if (row.has_document()) {
+            string value = row.document().value();
+            cout << "Document: " << value << endl;
+        } else {
+            cout << "NO DOCUMENT!" << endl;
+        }
+    },[](ViewMeta&& meta, ViewQuery*) {
+        cout << "View complete: " << endl;
+        cout << "  Status: " << meta.status() << endl;
+        cout << "  Body: " << meta.body() << endl;
+    });
+    h.wait();
     return 0;
 }
