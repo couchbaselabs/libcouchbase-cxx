@@ -8,8 +8,7 @@
 namespace Couchbase {
 
 EndureContext::EndureContext(Client& c,
-    const DurabilityOptions& options, Handler *handler, Status& rc)
-: client(c), m_remaining(0) {
+    const DurabilityOptions& options, Handler *handler, Status& rc) : client(c) {
     rc = client.mctx_endure(options, handler, m_ctx);
 }
 

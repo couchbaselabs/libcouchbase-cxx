@@ -155,24 +155,14 @@ public:
 template <StoreMode M>
 class StoreCommand : public Command<OpInfo::Store> {
 public:
-    //! @brief Create a new storage operation.
-    //! @param op Type of mutation to perform.
-    //! The default is @ref LCB_SET which unconditionally stores the item
-
-    StoreCommand(StoreMode op = M) : Command() {
-        m_cmd.operation = op;
+    StoreCommand() : Command() {
+        mode(M);
     }
-
-    StoreCommand(const std::string& key, const std::string& value, StoreMode mode = M) {
-        this->key(key);
-        this->value(value);
-        this->mode(mode);
+    StoreCommand(const std::string& key, const std::string& value) {
+        this->key(key); this->value(value); this->mode(M);
     }
-
-    StoreCommand(const char *key, const char *value, StoreMode mode = M) {
-        this->key(key);
-        this->value(value);
-        this->mode(mode);
+    StoreCommand(const char *key, const char *value) {
+        this->key(key); this->value(value); this->mode(M);
     }
     //! @brief Explicitly set the mutation type
     //! @param op the mutation type.
@@ -454,13 +444,13 @@ private:
 
 class StatsResponse : public Response<lcb_RESPSTATS> {
 public:
-    StatsResponse() : Response(), initialized(false), m_done(false) { }
+    StatsResponse() : Response() { }
     void handle_response(Client&, int, const lcb_RESPBASE *resp) override;
     bool done() const override { return m_done; }
     std::map<std::string,std::map<std::string,std::string> > stats;
 private:
-    bool initialized;
-    bool m_done;
+    bool initialized = false;
+    bool m_done = false;
 };
 
 class CounterResponse : public Response<lcb_RESPCOUNTER> {
@@ -478,20 +468,20 @@ public:
 class ObserveResponse : public Response<lcb_RESPOBSERVE> {
 public:
     struct ServerReply {
-        uint64_t cas;
-        bool master;
-        uint8_t status;
-        ServerReply() : cas(0), master(false), status(0) {}
-        bool exists() const { return status == LCB_OBSERVE_FOUND; }
+        uint64_t cas = 0;
+        bool master = false;
+        uint8_t status = 0;
+        ServerReply() {}
+        bool exists() const { return (status == LCB_OBSERVE_FOUND) || persisted(); }
         bool persisted() const { return status & (int)LCB_OBSERVE_PERSISTED; }
     };
 
-    ObserveResponse() : Response(), initialized(false) { }
+    ObserveResponse() : Response() { }
     inline void handle_response(Client&, int, const lcb_RESPBASE *res) override;
     inline const ServerReply& master_reply() const;
     const std::vector<ServerReply>& all_replies() const { return sinfo; }
 private:
-    bool initialized;
+    bool initialized = false;
     std::vector<ServerReply> sinfo;
 };
 
@@ -589,8 +579,8 @@ public:
     //! @brief Re-activates the batch.
     inline void reset();
 private:
-    bool entered;
-    size_t m_remaining;
+    bool entered = false;
+    size_t m_remaining = 0;
     Client& parent;
     Context(Context&) = delete;
     Context& operator=(Context&) = delete;
@@ -640,7 +630,7 @@ public:
     inline Status submit();
     inline void bail();
 private:
-    size_t m_remaining;
+    size_t m_remaining = 0;
     Internal::MultiDurContext m_ctx;
     Client& client;
 };

@@ -5,7 +5,7 @@
 
 namespace Couchbase {
 
-Context::Context(Client& h) : entered(false), parent(h)
+Context::Context(Client& h) : parent(h)
 {
     reset();
 }
