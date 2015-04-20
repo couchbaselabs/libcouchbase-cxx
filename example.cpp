@@ -91,14 +91,13 @@ int main(int argc, char **argv)
     }
 
     size_t numRows = 0;
-    for (auto ii = query.begin(); ii != query.end(); ii++) {
-            cout << "Key: " << ii->key() << endl;
-            cout << "Value: " << ii->value() << endl;
-            cout << "DocID: " << ii->docid() << endl;
+    for (auto ii : query) {
+            cout << "Key: " << ii.key() << endl;
+            cout << "Value: " << ii.value() << endl;
+            cout << "DocID: " << ii.docid() << endl;
 
-            if (ii->has_document()) {
-                std::string value;
-                ii->document().value(value);
+            if (ii.has_document()) {
+                string value = ii.document().value();
                 cout << "Document: " << value << endl;
             } else {
                 cout << "NO DOCUMENT!" << endl;
