@@ -38,6 +38,13 @@ ViewCommand::add_option(const char *key, int val) {
 }
 
 void
+ViewCommand::stale(StaleMode mode) {
+    if (mode == StaleMode::OK) { add_option("stale", "ok"); }
+    else if (mode == StaleMode::FALSE) { add_option("stale", "false"); }
+    else { add_option("stale", "update_after"); }
+}
+
+void
 ViewCommand::options(const char *options) {
     m_options = options;
     optstr = m_options.c_str();

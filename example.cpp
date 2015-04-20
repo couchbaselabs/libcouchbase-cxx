@@ -80,9 +80,11 @@ int main(int argc, char **argv)
     Status status;
     ViewCommand vCmd("beer", "brewery_beers");
     vCmd.include_docs();
-    vCmd.add_option("limit", 10);
-    vCmd.add_option("skip", 10);
-    vCmd.add_option("descending", true);
+    vCmd.limit(10);
+    vCmd.skip(10);
+    vCmd.descending(true);
+    vCmd.reduce(false);
+
     cout << "using options: " << vCmd.get_options() << endl;
 
     ViewQuery query(h, vCmd, status);

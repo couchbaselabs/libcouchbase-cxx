@@ -15,6 +15,8 @@ namespace Internal {
 extern "C" { static void viewcb(lcb_t,int,const lcb_RESPVIEWQUERY*); }
 }
 
+enum class StaleMode { OK, FALSE, UPDATE_AFTER };
+
 // View API
 class ViewCommand : private lcb_CMDVIEWQUERY {
 public:
@@ -52,6 +54,15 @@ public:
     inline void add_option(const char *key, const char *value);
     inline void add_option(const char *key, bool value);
     inline void add_option(const char *key, int value);
+
+    // More specific view options
+    void skip(int value) { add_option("skip", value); }
+    void limit(int value) { add_option("limit", value); }
+    void descending(bool value) { add_option("descending", value); }
+    void reduce(bool value) { add_option("descending", value); }
+    void group(bool value) { add_option("group", value); }
+    void group_level(int value) { add_option("group_level", value); }
+    inline void stale(StaleMode mode);
 
     //! Set the raw option string, e.g. `"stale=false&limit=400"`
     //! @param options the option string.
