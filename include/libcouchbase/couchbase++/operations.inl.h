@@ -45,43 +45,4 @@ Operation<C,R>::run(Client& client) {
     }
 }
 
-GetResponse::GetResponse() : Response() {
-    u.resp.bufh = NULL;
-    u.resp.value = NULL;
-    u.resp.nvalue = 0;
-}
-
-GetResponse& GetResponse::operator=(const GetResponse& other) {
-    clear();
-    assign_first(other);
-    return *this;
-}
-
-bool
-GetResponse::has_shared_buffer() const {
-    return u.resp.bufh != NULL && u.resp.value != NULL;
-}
-bool
-GetResponse::has_alloc_buffer() const {
-    return u.resp.bufh == NULL && u.resp.value != NULL;
-}
-char *
-GetResponse::vbuf_refcnt() {
-    return const_cast<char*>(valuebuf()) + valuesize();
-}
-
-void
-GetResponse::value(std::string& s) const {
-    if (status()) {
-        s.assign(valuebuf(), valuesize());
-    }
-}
-
-void
-GetResponse::value(std::vector<char>& v) const {
-    if (status()) {
-        v.insert(v.end(), valuebuf(), valuebuf()+valuesize());
-    }
-}
-
 } // namespace

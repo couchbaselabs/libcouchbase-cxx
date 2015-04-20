@@ -10,14 +10,16 @@
 #include <stdint.h>
 #include <map>
 #include <vector>
+#include <list>
 #include <iostream>
 
 namespace Couchbase {
 
 class Client;
 class Status;
-class BatchContext;
+class Context;
 class DurabilityOptions;
+class Handler;
 
 namespace Internal {
     template <typename T> class MultiContextT;
@@ -26,7 +28,44 @@ namespace Internal {
     typedef MultiContext<lcb_CMDOBSERVE> MultiObsContext;
 }
 
-template <typename C, typename R> class Operation;
+namespace OpInfo {
+struct Get {
+    typedef lcb_CMDGET CType;
+    typedef lcb_RESPGET RType;
+};
+struct Store {
+    typedef lcb_CMDSTORE CType;
+    typedef lcb_RESPSTORE RType;
+};
+struct Touch {
+    typedef lcb_CMDTOUCH CType;
+    typedef lcb_RESPTOUCH RType;
+};
+struct Remove {
+    typedef lcb_CMDREMOVE CType;
+    typedef lcb_RESPREMOVE RType;
+};
+struct Unlock {
+    typedef lcb_CMDUNLOCK CType;
+    typedef lcb_RESPUNLOCK RType;
+};
+struct Counter {
+    typedef lcb_CMDCOUNTER CType;
+    typedef lcb_RESPCOUNTER RType;
+};
+struct Stats {
+    typedef lcb_CMDSTATS CType;
+    typedef lcb_RESPSTATS RType;
+};
+struct Observe {
+    typedef lcb_CMDOBSERVE CType;
+    typedef lcb_RESPOBSERVE RType;
+};
+struct Endure {
+    typedef lcb_CMDENDURE CType;
+    typedef lcb_RESPENDURE RType;
+};
+}
 
 //! @brief Status code. This wrapp an `lcb_error_t`.
 //!
@@ -89,6 +128,11 @@ namespace Couchbase {
 template <typename T>
 class Command {
 public:
+    typedef typename T::CType LcbType;
+    typedef T Info; // Information about the type
+
+    Command() { memset(&m_cmd, 0, sizeof m_cmd); }
+
     //! Set the key for the command
     //! @param buf the buffer for the key
     //! @param len the size of the key
@@ -98,8 +142,8 @@ public:
     void key(const char *buf) { key(buf, strlen(buf)); }
     void key(const std::string& s) { key(s.c_str(), s.size()); }
 
-    const char *get_keybuf() const { return (const char *)m_cmd.key.contig.bytes; }
-    size_t get_keylen() const { return m_cmd.key.contig.nbytes; }
+    const char *keybuf() const { return (const char *)m_cmd.key.contig.bytes; }
+    size_t keylen() const { return m_cmd.key.contig.nbytes; }
 
     //! @brief Set the expiry for the command.
     //! @param n Expiry in seconds, and is either an offset in seconds from the
@@ -115,11 +159,26 @@ public:
     //! @param casval the CAS
     void cas(uint64_t casval) { m_cmd.cas = casval; }
     const lcb_CMDBASE* as_basecmd() const { return (const lcb_CMDBASE*)&m_cmd; }
-    Command() { memset(this, 0, sizeof *this); }
-    const T* operator&() const { return &m_cmd; }
+    const LcbType* operator&() const { return &m_cmd; }
+
+    //! Actual libcouchbase function used to schedule the command
+    typedef lcb_error_t (*Scheduler)(lcb_t, const void*, const LcbType*);
+    inline Scheduler scheduler() const;
 protected:
-    T m_cmd;
+    LcbType m_cmd;
 };
+
+#define LCB_CXX_DECLSCHED(cmdname, schedname) \
+template<> Command<cmdname>::Scheduler \
+Command<cmdname>::scheduler() const { return schedname; }
+
+LCB_CXX_DECLSCHED(OpInfo::Get, lcb_get3)
+LCB_CXX_DECLSCHED(OpInfo::Store, lcb_store3)
+LCB_CXX_DECLSCHED(OpInfo::Touch, lcb_touch3)
+LCB_CXX_DECLSCHED(OpInfo::Remove, lcb_remove3)
+LCB_CXX_DECLSCHED(OpInfo::Stats, lcb_stats3)
+LCB_CXX_DECLSCHED(OpInfo::Unlock, lcb_unlock3)
+LCB_CXX_DECLSCHED(OpInfo::Counter, lcb_counter3)
 
 #define LCB_CXX_CMD_CTOR(name) \
     name() : Command() {} \
@@ -129,7 +188,7 @@ protected:
 
 //! @class GetCommand
 //! @brief Command structure for retrieving items
-class GetCommand : public Command<lcb_CMDGET> {
+class GetCommand : public Command<OpInfo::Get> {
 public:
     LCB_CXX_CMD_CTOR(GetCommand)
     //! @brief Make this get operation be a get-and-lock operation
@@ -137,26 +196,28 @@ public:
     //! the key while the lock is still held on the server will fail. You may
     //! unlock the item using @ref UnlockCommand.
     void locktime(unsigned n) { expiry(n); m_cmd.lock = 1; }
+    Scheduler scheduler() const { return lcb_get3; }
 };
 
 //! @brief Command structure for mutating/storing items
-class StoreCommand : public Command<lcb_CMDSTORE> {
+template <lcb_storage_t M>
+class StoreCommand : public Command<OpInfo::Store> {
 public:
     //! @brief Create a new storage operation.
     //! @param op Type of mutation to perform.
     //! The default is @ref LCB_SET which unconditionally stores the item
 
-    StoreCommand(lcb_storage_t op = LCB_SET) : Command() {
+    StoreCommand(lcb_storage_t op = M) : Command() {
         m_cmd.operation = op;
     }
 
-    StoreCommand(const std::string& key, const std::string& value, lcb_storage_t mode = LCB_SET) {
+    StoreCommand(const std::string& key, const std::string& value, lcb_storage_t mode = M) {
         this->key(key);
         this->value(value);
         this->mode(mode);
     }
 
-    StoreCommand(const char *key, const char *value, lcb_storage_t mode = LCB_SET) {
+    StoreCommand(const char *key, const char *value, lcb_storage_t mode = M) {
         this->key(key);
         this->value(value);
         this->mode(mode);
@@ -183,10 +244,16 @@ public:
     void itemflags(uint32_t f) { m_cmd.flags = f; }
 };
 
+typedef StoreCommand<LCB_SET> UpsertCommand;
+typedef StoreCommand<LCB_ADD> InsertCommand;
+typedef StoreCommand<LCB_REPLACE> ReplaceCommand;
+typedef StoreCommand<LCB_APPEND> AppendCommand;
+typedef StoreCommand<LCB_PREPEND> PrependCommand;
+
 //! Command structure for atomic counter operations.
 //! This command treats a value as a number (the value must be formatted as a
 //! series of ASCII digis).
-class CounterCommand : public Command<lcb_CMDCOUNTER> {
+class CounterCommand : public Command<OpInfo::Counter> {
 public:
     //! Initialize the command.
     //! @param delta the delta to add to the value. If negative, the value is
@@ -205,27 +272,27 @@ public:
 };
 
 //! Command structure for _removing_ items from the cluster.
-class RemoveCommand : public Command<lcb_CMDREMOVE> {
+class RemoveCommand : public Command<OpInfo::Remove> {
 public:
     LCB_CXX_CMD_CTOR(RemoveCommand)
 };
 
-class StatsCommand : public Command<lcb_CMDSTATS> {
+class StatsCommand : public Command<OpInfo::Stats> {
 public:
     LCB_CXX_CMD_CTOR(StatsCommand)
 };
 
-class TouchCommand : public Command<lcb_CMDTOUCH> {
+class TouchCommand : public Command<OpInfo::Store> {
 public:
     LCB_CXX_CMD_CTOR(TouchCommand)
 };
 
-class UnlockCommand : public Command<lcb_CMDUNLOCK> {
+class UnlockCommand : public Command<OpInfo::Unlock> {
 public:
     LCB_CXX_CMD_CTOR(UnlockCommand)
 };
 
-class ObserveCommand : public Command<lcb_CMDOBSERVE> {
+class ObserveCommand : public Command<OpInfo::Observe> {
 public:
     LCB_CXX_CMD_CTOR(ObserveCommand)
     void master_only(bool val=true) {
@@ -237,6 +304,68 @@ public:
     }
 };
 
+class EndureCommand : public Command<OpInfo::Endure> {
+public:
+    EndureCommand(const char *key, uint64_t cas) : Command() {
+        this->key(key); this->cas(cas);
+    }
+    EndureCommand(const char *key, size_t nkey, uint64_t cas) : Command() {
+        this->key(key, nkey); this->cas(cas);
+    }
+    EndureCommand(const std::string& key, uint64_t cas) : Command() {
+        this->key(key); this->cas(cas);
+    }
+    const DurabilityOptions* options() const { return m_options; }
+    void options(const DurabilityOptions *o) { m_options = o; }
+
+private:
+    const DurabilityOptions *m_options = NULL;
+};
+
+enum class PersistTo : lcb_U16 {
+    NONE = 0, MASTER = 1, TWO = 2, THREE = 3, FOUR = 4
+};
+enum class ReplicateTo : lcb_U16 {
+    NONE = 0, ONE = 1, TWO = 2, THREE = 3
+};
+
+//! Options for durability constraints
+class DurabilityOptions : public lcb_durability_opts_t {
+public:
+    //! Construct a durability options object
+    //! @param persist_to @see #persist_to()
+    //! @param replicate_to @see #replicate_to()
+    //! @param cap_max @see cap_max
+    DurabilityOptions(
+        PersistTo n_persist = PersistTo::NONE,
+        ReplicateTo n_replicate = ReplicateTo::NONE,
+        bool cap_max = true) {
+
+        memset(static_cast<lcb_durability_opts_t*>(this), 0,
+            sizeof (lcb_durability_opts_t));
+
+        persist_to(n_persist);
+        replicate_to(n_replicate);
+        v.v0.cap_max = cap_max;
+    }
+    //! Wait for persistence to this many nodes
+    //! @param n the number of nodes to wait for
+    void persist_to(PersistTo n) { v.v0.persist_to = static_cast<uint16_t>(n); }
+
+    //! Wait for replication to this many replicas
+    //! @param n the number of replica nodes to wait to
+    void replicate_to(ReplicateTo n) { v.v0.replicate_to = static_cast<uint16_t>(n); }
+
+    //! Whether the client should try the maximum number of nodes, in case
+    //! the number of nodes/replicas specified by #persist_to() and
+    //! #replicate_to() currently exceed the cluster topology
+    //! @param enabled whether to enable this behavioe
+    void cap_max(bool enabled) { v.v0.cap_max = enabled; }
+
+    bool enabled() const {
+        return v.v0.persist_to || v.v0.replicate_to;
+    }
+};
 
 class Client;
 
@@ -273,10 +402,6 @@ public:
     //!         responses for the given command.
     bool final() const { return u.base.rflags & LCB_RESP_F_FINAL; }
 
-    //! Get user associated data for the command
-    //! @return the user data
-    void *cookie() const { return (void *)u.base.cookie; }
-
     //! Get the CAS for the operation. Only valid if the operation succeeded,
     //! @return the CAS.
     uint64_t cas() const { return u.base.cas; }
@@ -284,7 +409,7 @@ public:
     Response() {}
     virtual ~Response() {}
 
-    template <class D> static D& setcode(D& r, Status& c) {
+    template <class D> static D& setcode(D& r, const Status& c) {
         r.u.base.rc = c;
         return r;
     }
@@ -297,11 +422,27 @@ public:
         return true;
     }
 
+    //! Get the key for the response.
+    //! @return the key
+    //! @note The key contains the pointer to the key passed during request
+    //!       time. If the key passed to the original command is no longer
+    //!       valid, this this function will crash.
+    std::string key() const { return std::string(keybuf(), keylen()); }
+    const char *keybuf() const { return static_cast<const char*>(u.base.key); }
+    size_t keylen() const { return u.base.nkey; }
+
+    void set_key(const lcb_RESPBASE *rb) {
+        set_key(static_cast<const char*>(rb->key), rb->nkey);
+    }
+
 protected:
-    union {
-        lcb_RESPBASE base;
-        T resp;
-    } u;
+    union { lcb_RESPBASE base; T resp; } u;
+private:
+    void set_key(const char *key, size_t nkey) {
+        u.base.key = key;
+        u.base.nkey = nkey;
+    }
+    friend class Client;
 };
 
 namespace Internal {
@@ -402,7 +543,58 @@ private:
     std::vector<ServerReply> sinfo;
 };
 
-//! @brief A BatchContext can be used to efficiently batch multiple operations.
+//! Response received for durability operations
+class EndureResponse : public Response<lcb_RESPENDURE> {
+public:
+    //! @private
+    void handle_response(Client&, int, const lcb_RESPBASE *res) override {
+        u.resp = *(lcb_RESPENDURE*)res;
+    }
+
+    //! Check if the item was persisted on the master node's storage
+    //! @return true if the item was persisted to the master node
+    bool on_master_storage() const { return u.resp.persisted_master ? true : false; }
+
+    //! Check whether the item exists on the master at all. If this is false
+    //! then the item was either modified or the cluster has failed over
+    //! @return true if the item exists on the master; false otherwise
+    bool on_master_ram() const { return u.resp.exists_master ? true : false; }
+
+    //! Return the number of observe commands sent. This is mainly for
+    //! informational/debugging purposes
+    //! @return the number of `OBSERVE` commands sent to each server
+    size_t probes() const { return u.resp.nresponses; }
+
+    //! Get the number of nodes to which the item was actually persisted
+    //! @return the number of nodes to which the mutation was persisted
+    size_t persisted() const { return u.resp.npersisted; }
+
+    //! Get the number of nodes to which the item was replicated
+    //! @return the number of replicas containing this mutation.
+    size_t replicate() const { return u.resp.nreplicated; }
+};
+
+namespace Internal {
+template <typename T>
+class MultiContextT {
+public:
+    inline MultiContextT();
+    inline MultiContextT(lcb_MULTICMD_CTX*, Handler*, Client*);
+    inline MultiContextT& operator=(MultiContextT&&);
+    inline ~MultiContextT();
+    inline Status add(const T*);
+    inline Status done();
+    inline void bail();
+private:
+    lcb_MULTICMD_CTX *m_inner;
+    Handler *cookie;
+    Client *client;
+    MultiContextT(MultiContextT&) = delete;
+    MultiContextT& operator=(MultiContextT&) = delete;
+};
+}
+
+//! @brief A Context can be used to efficiently batch multiple operations.
 //! @details
 //! (aka "Bulk operations"). To use a batch context, first initialize it,
 //! and then call each @ref Operation's Operation::submit() function (passing
@@ -418,7 +610,7 @@ private:
 //!
 //! @note Operations submitted to the batch context are not actually submitted
 //! to the network until Client::wait() is called.
-class BatchContext {
+class Context {
 public:
     //! @brief Initialize the batch client.
     //! @param client the client to use.
@@ -426,25 +618,16 @@ public:
     //!          time. In addition, when a batch context is active, higher
     //!          level calls on the client (such as Client::get()) cannot be
     //!          performed.
-    inline BatchContext(Client& client);
-    inline ~BatchContext();
-
-    //! Wrapper method for scheduling a get operation. This allows the operation
-    //! to later be retrieved using #valueFor()
-    inline Status get(const std::string& s);
+    inline Context(Client& client);
+    inline Context(Context&&);
+    inline Context& operator=(Context&&);
+    inline ~Context();
 
     //! @brief Cancel any operations submitted in the current batch. This also
     //!        deactivates the batch. This is useful if scheduling several
     //!        dependent operations, where one of the operations fail.
     inline void bail();
-
-    template <typename T> Status addop(T& op) {
-        Status rv = op.schedule_cli(parent);
-        if (rv) {
-            m_remaining++;
-        }
-        return rv;
-    }
+    template <typename T> inline Status add(const Command<T>&, Handler *);
 
     //! @brief Submit all previously scheduled operations. These operations
     //!        will be performed when Client::wait() is called. This function
@@ -453,21 +636,61 @@ public:
 
     //! @brief Re-activates the batch.
     inline void reset();
-
-    //! @brief Retrieve responses for @ref GetOperation objects which were requested
-    //! via #get()
-    //! @param s the key
-    //! @return The GetResponse object for the given item. This is only valid
-    //! if `s` was requested via e.g. `get(s)` _and_ #submit() has been called
-    //! _and_ Client::wait() has been called.
-    inline const GetResponse& value_for(const std::string& s);
-    inline const GetResponse& operator[](const std::string&s) { return value_for(s); }
-    inline lcb_t handle() const;
 private:
     bool entered;
     size_t m_remaining;
     Client& parent;
-    std::map<std::string,Operation<GetCommand,GetResponse>*> resps;
+    Context(Context&) = delete;
+    Context& operator=(Context&) = delete;
+};
+
+template <typename C, typename R>
+class BatchCommand {
+public:
+    typedef std::list<R> RList;
+    inline BatchCommand(Client&);
+    inline Status add(const C& cmd);
+    template <typename ...Params> Status add(Params... params) {
+        return add(C(params...));
+    }
+    Context& context() { return m_ctx; }
+    void submit() { m_ctx.submit(); }
+
+    typename RList::const_iterator begin() const { return m_resplist.begin(); }
+    typename RList::const_iterator end() const { return m_resplist.end(); }
+
+protected:
+    Context m_ctx; // Context (either implicit or explicit)
+    RList m_resplist; // List of responses
+};
+
+template <typename C, typename R>
+class CallbackCommand : public Handler {
+public:
+    typedef const std::function<void(R&)> CallbackType;
+    inline CallbackCommand(Client&, CallbackType&);
+    inline Status add(const C& cmd);
+    template <typename ...Params> Status add(Params... params) {
+        return add(C(params...));
+    }
+    void submit() { m_ctx.submit(); }
+    void handle_response(Client&, int, const lcb_RESPBASE*) override;
+    bool done() const override { return true; }
+protected:
+    CallbackType m_callback;
+    Context m_ctx;
+};
+
+class EndureContext {
+public:
+    inline EndureContext(Client&, const DurabilityOptions&, Handler *h, Status &);
+    inline Status add(const EndureCommand&);
+    inline Status submit();
+    inline void bail();
+private:
+    size_t m_remaining;
+    Internal::MultiDurContext m_ctx;
+    Client& client;
 };
 
 //! @brief Main client object.
@@ -487,14 +710,43 @@ public:
     inline ~Client();
 
     inline GetResponse get(const GetCommand&);
+    template <typename ...Params> GetResponse get(Params... params) {
+        return get(GetCommand(params...));
+
+    }
+
+    template <lcb_storage_t T> inline StoreResponse store(const StoreCommand<T>&);
+    template <typename ...Params> StoreResponse upsert(Params... params) {
+        return store(UpsertCommand(params...));
+    }
+    template <typename ...Params> StoreResponse insert(Params... params) {
+        return store(InsertCommand(params...));
+    }
+    template <typename ...Params> StoreResponse replace(Params... params) {
+        return store(ReplaceCommand(params...));
+    }
+
     inline TouchResponse touch(const TouchCommand&);
-    inline StoreResponse upsert(const StoreCommand&);
-    inline StoreResponse add(const StoreCommand&);
-    inline StoreResponse replace(const StoreCommand&);
+
     inline RemoveResponse remove(const RemoveCommand&);
+    template <typename ...Params> RemoveResponse remove(Params... params) {
+        return remove(RemoveCommand(params...));
+    }
+
     inline CounterResponse counter(const CounterCommand&);
     inline StatsResponse stats(const std::string& key);
     inline UnlockResponse unlock(const UnlockCommand& cmd);
+
+    inline EndureResponse endure(const EndureCommand& cmd, const DurabilityOptions* options = NULL);
+    inline EndureResponse endure(const EndureCommand& cmd, const DurabilityOptions& options) {
+        return endure(cmd, &options);
+    }
+
+    template <typename T>
+    inline Status schedule(const Command<T>&, Handler *);
+
+    template <typename T, typename R>
+    inline Status run(const Command<T>&, Response<R>&);
 
     //! @brief Wait until client is connected
     //! @details
@@ -518,158 +770,24 @@ public:
     //! @private
     inline void _dispatch(int, const lcb_RESPBASE*);
 
-    //! @private
-    Status schedule_get(const lcb_CMDGET *cmd, Handler *handler) {
-        return lcb_get3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_store(const lcb_CMDSTORE *cmd, Handler *handler) {
-        return lcb_store3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_touch(const lcb_CMDTOUCH *cmd, Handler *handler) {
-        return lcb_touch3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_counter(const lcb_CMDCOUNTER *cmd, Handler *handler) {
-        return lcb_counter3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_remove(const lcb_CMDREMOVE *cmd, Handler *handler) {
-        return lcb_remove3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_unlock(const lcb_CMDUNLOCK *cmd, Handler *handler) {
-        return lcb_unlock3(m_instance, handler->as_cookie(), cmd);
-    }
-    Status schedule_stats(const lcb_CMDSTATS *cmd, Handler *handler) {
-        return lcb_stats3(m_instance, handler->as_cookie(), cmd);
-    }
-
-    Status mctx_endure(const DurabilityOptions&, Handler*, Internal::MultiDurContext&);
-    Status mctx_observe(Handler*, Internal::MultiObsContext&);
+    inline Status mctx_endure(const DurabilityOptions&, Handler*, Internal::MultiDurContext&);
+    inline Status mctx_observe(Handler*, Internal::MultiObsContext&);
 
     void enter() { lcb_sched_enter(m_instance); }
     void leave() { lcb_sched_leave(m_instance); }
     void fail() { lcb_sched_fail(m_instance); }
 
 private:
-    friend class BatchContext;
-    friend class DurabilityContext;
+    friend class Context;
+    friend class EndureContext;
     lcb_t m_instance;
     size_t remaining;
+    DurabilityOptions m_duropts;
     Client(Client&) = delete;
 };
-
-//! @class Operation
-//! @brief Base "Operation" class
-//! @details
-//! This operation class is used to perform operations on the cluster. The
-//! operation class contains both the command and response structure
-//! for the operation.
-//!
-//! The operation class is simply a "subclass" of the command structure with
-//! a placeholder structure for the response.
-template <typename C=Command<lcb_CMDBASE>, typename R=Response<lcb_RESPBASE>>
-class Operation : public C {
-protected:
-    typedef C CommandType;
-    typedef R ResponseType;
-
-public:
-    Operation() : CommandType() {}
-    Operation(const CommandType& c) : CommandType(c) {}
-    Operation(CommandType& c) : CommandType(c) {}
-    Operation(const char *key) : CommandType(key) {}
-    Operation(const char *key, size_t nkey) : CommandType(key, nkey) {}
-    Operation(const std::string& key) : CommandType(key) {}
-
-    Operation<StoreCommand,R>(const std::string& k, const std::string& v,
-        lcb_storage_t mode = LCB_SET) : StoreCommand(k, v, mode) {
-    }
-    Operation<StoreCommand,R>(const char *k, const char *v, lcb_storage_t mode = LCB_SET) :
-            StoreCommand(k, v, mode) {
-    }
-
-    //! Get the response
-    //! @return a reference to the inner response object
-    R response() { return res; }
-    const R& const_response() const { return res; }
-
-    //! Schedule an operation on an active context
-    //! @param ctx an active context
-    //! @return a status. If the status is not successful, this operation
-    //!         has not been scheduled successfully. Otherwise,
-    //!         the operation will complete once BatchContext::submit() and
-    //!         Client::wait() have been invoked.
-    Status schedule(BatchContext& ctx) { return ctx.addop(*this); }
-
-    //! Execute this operation immediately on the client.
-    //! @param client the client to use. The client must not have an active
-    //!        context.
-    //! @return the status of the response
-    inline R run(Client& client);
-protected:
-    friend class BatchContext;
-    inline Status schedule_cli(Client&);
-    R res;
-};
-
-//! @class StoreOperation
-//! Storage operation. @see StoreCommand
-typedef Operation<StoreCommand, StoreResponse> StoreOperation;
-
-//! @class GetOperation
-//! @extends Operation
-//! Retrieve item from the cluster. @see GetCommand
-typedef Operation<GetCommand,GetResponse> GetOperation;
-
-//! @class RemoveOperation
-//! @extends Operation
-//! @extends RemoveCommand
-//! Remove/Delete operation. @see RemoveCommand
-typedef Operation<RemoveCommand,RemoveResponse> RemoveOperation;
-
-//! @class TouchOperation
-//! @extends Operation
-//! @extends TouchCommand
-//! Touch operation (modify the expiry). @see TouchCommand
-typedef Operation<TouchCommand,TouchResponse> TouchOperation;
-
-//! @class CounterOperation
-//! Change counter value. @see CounterCommand
-typedef Operation<CounterCommand,CounterResponse> CounterOperation;
-typedef Operation<ObserveCommand,ObserveResponse> ObserveOperation;
-typedef Operation<UnlockCommand, UnlockResponse> UnlockOperation;
-
-#define LCB_CXX_STORE_CTORS(cName, mType) \
-    cName(const std::string k, const std::string& v) : StoreOperation(k, v, mType) {} \
-    cName(const char *k, const char *v) : StoreOperation(k, v, mType) {} \
-    cName(const char *key, size_t nkey, const char *value, size_t nvalue) : StoreOperation(mType) { \
-        this->key(key, nkey); \
-        this->value(value, nvalue); \
-    }
-
-lcb_t BatchContext::handle() const { return parent.handle(); }
 } // namespace Couchbase
 
 #include <libcouchbase/couchbase++/mctx.inl.h>
-#include <libcouchbase/couchbase++/operations.inl.h>
-
-namespace Couchbase {
-//! Modify item unconditionally
-class UpsertOperation : public StoreOperation {
-public:
-    LCB_CXX_STORE_CTORS(UpsertOperation, LCB_SET);
-};
-
-//! Add item only if it does not exist
-class AddOperation : public StoreOperation {
-public:
-    LCB_CXX_STORE_CTORS(AddOperation, LCB_ADD);
-};
-
-//! Replace item only if it exists
-class ReplaceOperation : public StoreOperation {
-public:
-    LCB_CXX_STORE_CTORS(ReplaceOperation, LCB_REPLACE);
-};
-}
 #include <libcouchbase/couchbase++/endure.h>
 #include <libcouchbase/couchbase++/client.inl.h>
 #include <libcouchbase/couchbase++/batch.inl.h>

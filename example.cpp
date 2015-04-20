@@ -1,6 +1,7 @@
 #include <libcouchbase/couchbase++.h>
 #include <libcouchbase/couchbase++/views.h>
 #include <libcouchbase/couchbase++/endure.h>
+#include <libcouchbase/couchbase++/logging.h>
 #include <cassert>
 #include <iostream>
 #include <vector>
@@ -26,64 +27,55 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    //! Store item.
-    UpsertOperation scmd("foo",
-        "{ \"v\": 100.1, \"list\": [1,2,3,4,5,6,7], \"talk\": \"About Foo.\" }");
-    auto sres = scmd.run(h);
+
+    auto sres = h.upsert("foo",
+            "{ \"v\": 100.1, \"list\": [1,2,3,4,5,6,7], \"talk\": \"About Foo.\" }");
     cout << "Got status for store. Cas=" << std::hex << sres.cas() << endl;
 
-    //! don't use implicit op
-    sres = h.upsert(scmd);
+    auto gres = h.get("foo");
+    cout << "Got value: " << gres.value() << std::endl;
 
-    //! Use a command to retrieve an item
-    GetOperation cmd("foo");
-    cmd.run(h);
-    //! The response object can be returned via run() or via response()
-    auto res = cmd.response();
-    cout << "Got value: " << res.value() << std::endl;
+    gres = h.get("non-exist-key");
+    cout << "Got status for non-existent key: " << gres.status() << endl;
 
-    cmd.key("non-exist-key");
-    cmd.run(h);
-    cout << "Got status for non-existent key: " << cmd.response().status() << endl;
-
-    //! Use batch contexts to perform "bulk" operations
-    BatchContext ctx(h);
+    BatchCommand<UpsertCommand, StoreResponse> bulkStore(h);
     for (size_t ii = 0; ii < 10; ii++) {
-        scmd.schedule(ctx);
+        bulkStore.add("Key", "Value");
     }
-    ctx.submit();
+    bulkStore.submit();
     h.wait();
 
-    //! Store a bunch of items, one at a time (does not use batching)
-    UpsertOperation("foo", "FOOVALUE").run(h);
-    UpsertOperation("bar", "BARVALUE").run(h);
-    UpsertOperation("baz", "BAZVALUE").run(h);
+    BatchCommand<GetCommand, GetResponse> bulkGet(h);
+    for (size_t ii = 0; ii < 10; ii++) {
+        bulkGet.add("Key");
+    }
+    bulkGet.submit();
+    h.wait();
+
+    CallbackCommand<GetCommand, GetResponse> cbGet(h, [](GetResponse& resp) {
+        cout << "Got response for: " << resp.key() << endl;
+        cout << "  Status: " << resp.status() << endl;
+        cout << "  Value: " << resp.value() << endl;
+    });
+
+    cbGet.add("Key");
+    cbGet.submit();
+    h.wait();
+
+    h.upsert("foo", "FOOVALUE");
+    h.upsert("bar", "BARVALUE");
+    h.upsert("baz", "BAZVALUE");
 
     //! Use durability requirements
-    UpsertOperation endureOp("toEndure", "toEndure");
-    endureOp.run(h);
-    cout << "Endure status: " << DurabilityOperation(endureOp).run(h).status() << endl;
-
-    //! Reset the context.
-    ctx.reset();
-
-    //! Use shorthand for "getting" an item.
-    ctx.get("foo");
-    ctx.get("bar");
-    ctx.get("baz");
-    ctx.submit(); // Schedule the pipeline
-
-    // Wait for them all!
-    h.wait();
-
-    cout << "Value for foo is " << ctx["foo"].value() << endl;
-    cout << "Value for bar is " << ctx["bar"].value() << endl;
-    cout << "Value for baz is " << ctx["baz"].value() << endl;
+    sres = h.upsert("toEndure", "toEndure");
+    cout << "Endure Status: "
+            << h.endure(EndureCommand("toEndure", sres.cas()),
+                DurabilityOptions(PersistTo::MASTER)).status();
 
     //! Remove the items we just created
-    RemoveOperation("foo").run(h);
-    RemoveOperation("bar").run(h);
-    RemoveOperation("baz").run(h);
+    h.remove("foo");
+    h.remove("bar");
+    h.remove("baz");
 
     Status status;
     ViewCommand vCmd("beer", "brewery_beers");

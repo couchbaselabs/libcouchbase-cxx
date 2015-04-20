@@ -25,7 +25,8 @@ Client::_dispatch(int cbtype, const lcb_RESPBASE *r)
     }
 }
 
-Client::Client(const std::string& connstr, const std::string& passwd) : remaining(0)
+Client::Client(const std::string& connstr, const std::string& passwd)
+: remaining(0), m_duropts(PersistTo::NONE, ReplicateTo::NONE)
 {
     lcb_create_st cropts;
     cropts.version = 3;
@@ -67,80 +68,101 @@ Client::connect()
     return ret;
 }
 
+template <typename T> Status
+Client::schedule(const Command<T>& command, Handler *handler) {
+    return command.scheduler()(handle(), handler, &command);
+}
+
+template <typename T, typename R> Status
+Client::run(const Command<T>& command, Response<R>& response) {
+    enter();
+    Status s = schedule(command, &response);
+    if (!s) {
+        fail();
+    } else {
+        leave();
+        wait();
+    }
+
+    response.set_key(command.keybuf(), command.keylen());
+    return s;
+}
+
 GetResponse
 Client::get(const GetCommand& cmd) {
-    GetOperation gop(cmd);
-    gop.run(*this);
-    return gop.response();
+    GetResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
 TouchResponse
 Client::touch(const TouchCommand& cmd) {
-    TouchOperation top(cmd);
-    top.run(*this);
-    return top.response();
+    TouchResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
-StoreResponse
-Client::upsert(const StoreCommand& cmd) {
-    StoreOperation sop(cmd);
-    sop.mode(LCB_SET);
-    sop.run(*this);
-    return sop.response();
-}
-
-StoreResponse
-Client::add(const StoreCommand& cmd) {
-    StoreOperation sop(cmd);
-    sop.mode(LCB_ADD);
-    sop.run(*this);
-    return sop.response();
-}
-
-StoreResponse
-Client::replace(const StoreCommand& cmd) {
-    StoreOperation sop(cmd);
-    sop.mode(LCB_REPLACE);
-    sop.run(*this);
-    return sop.response();
+template <lcb_storage_t T> StoreResponse
+Client::store(const StoreCommand<T>& cmd) {
+    StoreResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
 RemoveResponse
 Client::remove(const RemoveCommand& cmd) {
-    RemoveOperation rop(cmd);
-    rop.run(*this);
-    return rop.response();
+    RemoveResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
 CounterResponse
 Client::counter(const CounterCommand& cmd) {
-    CounterOperation cop(cmd);
-    cop.run(*this);
-    return cop.response();
+    CounterResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
 StatsResponse
 Client::stats(const std::string& key) {
     StatsCommand cmd(key);
-    StatsResponse res;
-
-    enter();
-    Status rc = lcb_stats3(m_instance, &res, &cmd);
-    if (!rc) {
-        fail();
-        return StatsResponse::setcode(res, rc);
-    } else {
-        leave();
-        wait();
-        return res;
-    }
+    StatsResponse resp;
+    run(cmd, resp);
+    return resp;
 }
 
 UnlockResponse
 Client::unlock(const UnlockCommand& cmd) {
-    UnlockOperation uop(cmd);
-    uop.run(*this);
-    return uop.response();
+    UnlockResponse resp;
+    run(cmd, resp);
+    return resp;
+}
+
+EndureResponse
+Client::endure(const EndureCommand& cmd, const DurabilityOptions *options)
+{
+    EndureResponse resp;
+    Status st;
+    if (options == NULL) {
+        options = const_cast<const DurabilityOptions*>(&m_duropts);
+    }
+    if (!options->enabled()) {
+        return EndureResponse::setcode(resp, Status(LCB_EINVAL));
+    }
+    EndureContext ctx(*this, *options, &resp, st);
+    if (!st) {
+        return EndureResponse::setcode(resp, st);
+    }
+    st = ctx.add(cmd);
+    if (!st) {
+        return EndureResponse::setcode(resp, st);
+    }
+    st = ctx.submit();
+    if (!st) {
+        return EndureResponse::setcode(resp, st);
+    }
+    wait();
+    return resp;
 }
 
 Status
@@ -231,7 +253,7 @@ StatsResponse::handle_response(Client& c, int t, const lcb_RESPBASE *resp)
         return;
     }
 
-    lcb_RESPSTATS *rs = (lcb_RESPSTATS *)resp;
+    auto rs = reinterpret_cast<const lcb_RESPSTATS*>(resp);
     std::string server = rs->server;
     std::string key((const char*)rs->key, rs->nkey);
     std::string value((const char *)rs->value, rs->nvalue);
@@ -277,4 +299,47 @@ ObserveResponse::master_reply() const
     }
     return dummy;
 }
+
+GetResponse::GetResponse() : Response() {
+    u.resp.bufh = NULL;
+    u.resp.value = NULL;
+    u.resp.nvalue = 0;
+}
+
+GetResponse&
+GetResponse::operator=(const GetResponse& other) {
+    clear();
+    assign_first(other);
+    return *this;
+}
+
+bool
+GetResponse::has_shared_buffer() const {
+    return u.resp.bufh != NULL && u.resp.value != NULL;
+}
+
+bool
+GetResponse::has_alloc_buffer() const {
+    return u.resp.bufh == NULL && u.resp.value != NULL;
+}
+
+char *
+GetResponse::vbuf_refcnt() {
+    return const_cast<char*>(valuebuf()) + valuesize();
+}
+
+void
+GetResponse::value(std::string& s) const {
+    if (status()) {
+        s.assign(valuebuf(), valuesize());
+    }
+}
+
+void
+GetResponse::value(std::vector<char>& v) const {
+    if (status()) {
+        v.insert(v.end(), valuebuf(), valuebuf()+valuesize());
+    }
+}
+
 } // namespace Couchbase
