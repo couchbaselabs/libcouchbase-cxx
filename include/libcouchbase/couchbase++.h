@@ -13,59 +13,11 @@
 #include <list>
 #include <iostream>
 
+#include <libcouchbase/couchbase++/forward.h>
+
 namespace Couchbase {
 
-class Client;
-class Status;
-class Context;
-class DurabilityOptions;
-class Handler;
-
-namespace Internal {
-    template <typename T> class MultiContextT;
-    template<typename T> using MultiContext = MultiContextT<T>;
-    typedef MultiContext<lcb_CMDENDURE> MultiDurContext;
-    typedef MultiContext<lcb_CMDOBSERVE> MultiObsContext;
-}
-
-namespace OpInfo {
-struct Get {
-    typedef lcb_CMDGET CType;
-    typedef lcb_RESPGET RType;
-};
-struct Store {
-    typedef lcb_CMDSTORE CType;
-    typedef lcb_RESPSTORE RType;
-};
-struct Touch {
-    typedef lcb_CMDTOUCH CType;
-    typedef lcb_RESPTOUCH RType;
-};
-struct Remove {
-    typedef lcb_CMDREMOVE CType;
-    typedef lcb_RESPREMOVE RType;
-};
-struct Unlock {
-    typedef lcb_CMDUNLOCK CType;
-    typedef lcb_RESPUNLOCK RType;
-};
-struct Counter {
-    typedef lcb_CMDCOUNTER CType;
-    typedef lcb_RESPCOUNTER RType;
-};
-struct Stats {
-    typedef lcb_CMDSTATS CType;
-    typedef lcb_RESPSTATS RType;
-};
-struct Observe {
-    typedef lcb_CMDOBSERVE CType;
-    typedef lcb_RESPOBSERVE RType;
-};
-struct Endure {
-    typedef lcb_CMDENDURE CType;
-    typedef lcb_RESPENDURE RType;
-};
-}
+typedef lcb_storage_t StoreMode;
 
 //! @brief Status code. This wrapp an `lcb_error_t`.
 //!
@@ -200,31 +152,31 @@ public:
 };
 
 //! @brief Command structure for mutating/storing items
-template <lcb_storage_t M>
+template <StoreMode M>
 class StoreCommand : public Command<OpInfo::Store> {
 public:
     //! @brief Create a new storage operation.
     //! @param op Type of mutation to perform.
     //! The default is @ref LCB_SET which unconditionally stores the item
 
-    StoreCommand(lcb_storage_t op = M) : Command() {
+    StoreCommand(StoreMode op = M) : Command() {
         m_cmd.operation = op;
     }
 
-    StoreCommand(const std::string& key, const std::string& value, lcb_storage_t mode = M) {
+    StoreCommand(const std::string& key, const std::string& value, StoreMode mode = M) {
         this->key(key);
         this->value(value);
         this->mode(mode);
     }
 
-    StoreCommand(const char *key, const char *value, lcb_storage_t mode = M) {
+    StoreCommand(const char *key, const char *value, StoreMode mode = M) {
         this->key(key);
         this->value(value);
         this->mode(mode);
     }
     //! @brief Explicitly set the mutation type
     //! @param op the mutation type.
-    void mode(lcb_storage_t op) { m_cmd.operation = op; }
+    void mode(StoreMode op) { m_cmd.operation = op; }
 
     //! @brief Set the value to be stored.
     //! @param b Buffer
