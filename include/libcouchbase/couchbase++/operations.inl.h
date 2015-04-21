@@ -32,9 +32,6 @@ template <typename C, typename R> inline R
 Operation<C,R>::run(Client& client) {
     BatchContext b(client);
     Status st = schedule(b);
-    if (!st) {
-        return R::setcode(res, st);
-    }
     if (st) {
         b.submit();
         client.wait();

@@ -15,7 +15,7 @@ using std::vector;
 
 using namespace Couchbase;
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
     //! Connect to the client
     string connstr(argc > 1 ? argv[1] : "couchbase://localhost/default");
