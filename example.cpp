@@ -70,7 +70,8 @@ int main(int argc, const char **argv)
     sres = h.upsert("toEndure", "toEndure");
     cout << "Endure Status: "
             << h.endure(EndureCommand("toEndure", sres.cas()),
-                DurabilityOptions(PersistTo::MASTER)).status();
+                DurabilityOptions(PersistTo::MASTER)).status()
+                << endl;
 
     //! Remove the items we just created
     h.remove("foo");
