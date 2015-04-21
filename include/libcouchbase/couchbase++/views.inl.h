@@ -113,7 +113,8 @@ ViewMeta::ViewMeta(const lcb_RESPVIEWQUERY *resp) : m_htcode(-1) {
     }
 }
 
-ViewQuery::ViewQuery(Client& client, const ViewCommand& cmd, Status& status,
+CallbackViewQuery::CallbackViewQuery(
+    Client& client, const ViewCommand& cmd, Status& status,
     RowCallback rowcb, DoneCallback donecb)
 : cli(client), m_rowcb(rowcb), m_donecb(donecb) {
 
@@ -123,42 +124,51 @@ ViewQuery::ViewQuery(Client& client, const ViewCommand& cmd, Status& status,
     }
 }
 
-ViewQuery::~ViewQuery() {
-    stop();
-    if (m_meta != NULL) {
-        delete m_meta;
-        m_meta = NULL;
-    }
-}
-
 void
-ViewQuery::_dispatch(const lcb_RESPVIEWQUERY *resp) {
+CallbackViewQuery::_dispatch(const lcb_RESPVIEWQUERY *resp) {
     if (!(resp->rflags & LCB_RESP_F_FINAL)) {
-        if (m_rowcb != NULL && vh != NULL) {
-            m_rowcb(ViewRow(cli, resp), this);
-        } else {
-            rows.push_back(ViewRow(cli, resp));
-            rows.back().detatch();
-        }
+        m_rowcb(ViewRow(cli, resp), this);
     } else {
-        if (m_donecb != NULL && vh != NULL) {
-            m_donecb(ViewMeta(resp), this);
-        } else {
-            m_meta = new ViewMeta(resp);
-        }
+        m_donecb(ViewMeta(resp), this);
         vh = NULL;
     }
-    if (m_donecb == NULL && m_rowcb == NULL) {
-        cli.breakout();
-    }
 }
 
 void
-ViewQuery::stop() {
+CallbackViewQuery::stop() {
     if (active()) {
         lcb_view_cancel(cli.handle(), vh);
         vh = NULL;
     }
+}
+
+ViewQuery::ViewQuery(Client& cli, const ViewCommand& cmd, Status& st)
+: CallbackViewQuery(cli, cmd, st,
+
+    [this](ViewRow&& r, CallbackViewQuery*) {
+        handle_row(std::move(r));
+    },
+    [this](ViewMeta&& m, CallbackViewQuery*) {
+        handle_done(std::move(m));
+    })
+{
+}
+
+CallbackViewQuery::~CallbackViewQuery() {
+    stop();
+}
+
+void
+ViewQuery::handle_row(ViewRow&& row) {
+    rows.push_back(row);
+    rows.back().detatch();
+    cli.breakout();
+}
+
+void
+ViewQuery::handle_done(ViewMeta&& m) {
+    m_meta = std::move(m);
+    cli.breakout();
 }
 
 const ViewRow*
@@ -177,10 +187,7 @@ ViewQuery::next() {
 Status
 ViewQuery::status() const {
     assert(!active());
-    if (m_meta != NULL) {
-        return m_meta->m_rc;
-    }
-    return Status(LCB_ERROR);
+    return m_meta.status();
 }
 
 namespace Internal {

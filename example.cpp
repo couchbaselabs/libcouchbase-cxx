@@ -113,8 +113,8 @@ int main(int argc, char **argv)
 
     cout << "Using async query.." << endl;
     // Async
-    auto asyncQuery = ViewQuery(h, vCmd, status,
-        [](ViewRow&& row, ViewQuery*) {
+    auto asyncQuery = CallbackViewQuery(h, vCmd, status,
+        [](ViewRow&& row, CallbackViewQuery*) {
         cout << "Key: " << row.key() << endl;
         cout << "Value: " << row.value() << endl;
         cout << "DocID: " << row.docid() << endl;
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
         } else {
             cout << "NO DOCUMENT!" << endl;
         }
-    },[](ViewMeta&& meta, ViewQuery*) {
+    },[](ViewMeta&& meta, CallbackViewQuery*) {
         cout << "View complete: " << endl;
         cout << "  Status: " << meta.status() << endl;
         cout << "  Body: " << meta.body() << endl;

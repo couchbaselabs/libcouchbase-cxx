@@ -9,6 +9,7 @@
 
 namespace Couchbase {
 
+class CallbackViewQuery;
 class ViewQuery;
 
 namespace Internal {
@@ -74,7 +75,7 @@ private:
     std::string m_options;
     std::string s_view;
     std::string s_design;
-    friend class ViewQuery;
+    friend class CallbackViewQuery;
     lcb_VIEWHANDLE vhptr;
     inline void add_cmd_flag(int flag, bool enabled);
 };
@@ -125,7 +126,7 @@ private:
     GetResponse m_document;
     bool m_hasdoc;
     friend class Client;
-    friend class ViewQuery;
+    friend class CallbackViewQuery;
 };
 
 class ViewMeta {
@@ -134,31 +135,24 @@ public:
     const std::string& http_body() const { return m_http; }
     Status status() const { return m_rc; }
     short http_status() const { return m_htcode; }
+    ViewMeta(){}
 private:
     std::string m_body;
     std::string m_http;
     Status m_rc;
-    short m_htcode;
-    friend class ViewQuery;
+    short m_htcode = 0;
+    friend class CallbackViewQuery;
     inline ViewMeta(const lcb_RESPVIEWQUERY *resp);
 };
 
 
 namespace Internal { class ViewIterator; }
 
-class ViewHandler {
+// View query which can be used with a callback!
+class CallbackViewQuery {
 public:
-    virtual void handle_row(ViewRow&& row, ViewQuery *query);
-    virtual void handle_final(ViewMeta&& meta);
-    virtual ~ViewHandler(){}
-};
-
-//! This class may be used to execute a view query and iterate over its
-//! results.
-class ViewQuery {
-public:
-    typedef std::function<void(ViewRow&&, ViewQuery*)> RowCallback;
-    typedef std::function<void(ViewMeta&&, ViewQuery*)> DoneCallback;
+    typedef std::function<void(ViewRow&&, CallbackViewQuery*)> RowCallback;
+    typedef std::function<void(ViewMeta&&, CallbackViewQuery*)> DoneCallback;
 
     //! Initialize the query object.
     //! @param client the client on which to issue the query
@@ -166,10 +160,10 @@ public:
     //! @param status used to indicate any errors during the construction
     //!        of the query. If status is false (i.e. failure), then this object
     //!        must not be used further.
-    inline ViewQuery(Client& client, const ViewCommand& cmd, Status& status,
+    inline CallbackViewQuery(Client& client, const ViewCommand& cmd, Status& status,
         RowCallback rowcb = NULL, DoneCallback done_cb = NULL);
 
-    inline ~ViewQuery();
+    inline virtual ~CallbackViewQuery();
     inline void _dispatch(const lcb_RESPVIEWQUERY *resp);
 
     //! @private
@@ -182,11 +176,24 @@ public:
     //! Whether this query object is still active (still has rows to be fetched)
     //! @return true if still active.
     bool active() const { return vh != NULL; }
+protected:
+    Client& cli;
+private:
+    RowCallback m_rowcb = NULL;
+    DoneCallback m_donecb = NULL;
+    lcb_VIEWHANDLE vh = NULL;
+};
+
+//! This class may be used to execute a view query and iterate over its
+//! results.
+class ViewQuery : public CallbackViewQuery {
+public:
+    inline ViewQuery(Client&, const ViewCommand&, Status&);
 
     //! Get the metadata for the query execution. This contains JSON metadata as
     //! well as the return code. This should only be called if `!active()`
-    //! @return a pointer to the view metadata
-    const ViewMeta* meta() const { return m_meta; }
+    //! @return the view metadata
+    const ViewMeta& meta() const { return m_meta; }
 
     typedef Internal::ViewIterator const_iterator;
 
@@ -198,14 +205,12 @@ public:
     inline Status status() const;
 
 private:
-    Client& cli;
-    ViewMeta *m_meta = NULL;
-    RowCallback m_rowcb = NULL;
-    DoneCallback m_donecb = NULL;
-    lcb_VIEWHANDLE vh = NULL;
+    ViewMeta m_meta;
     std::deque<ViewRow> rows;
     friend class Internal::ViewIterator;
     inline const ViewRow* next();
+    void handle_row(ViewRow&&);
+    void handle_done(ViewMeta&&);
 };
 
 namespace Internal {
