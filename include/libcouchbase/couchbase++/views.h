@@ -6,6 +6,7 @@
 #define LCB_PLUSPLUS_VIEWS_H
 
 #include <deque>
+#include <libcouchbase/couchbase++/row_common.h>
 
 namespace Couchbase {
 
@@ -186,7 +187,9 @@ private:
 
 //! This class may be used to execute a view query and iterate over its
 //! results.
-class ViewQuery : public CallbackViewQuery {
+class ViewQuery
+        : public CallbackViewQuery,
+          protected Internal::RowProvider<ViewRow> {
 public:
     inline ViewQuery(Client&, const ViewCommand&, Status&);
 
@@ -194,21 +197,21 @@ public:
     //! well as the return code. This should only be called if `!active()`
     //! @return the view metadata
     const ViewMeta& meta() const { return m_meta; }
-
-    typedef Internal::ViewIterator const_iterator;
+    typedef Internal::RowIterator<ViewRow> const_iterator;
 
     //! Begin iterating on the rows of the view. The returned
     //! iterator will incrementally fetch rows from the network
     //! until no more rows remain.
-    inline const_iterator begin();
-    inline const_iterator end();
+    inline const_iterator begin() { return rp_begin(); }
+    inline const_iterator end() { return rp_end(); }
     inline Status status() const;
+
+protected:
+    bool rp_active() const override { return active(); }
+    void rp_wait() override { cli.wait(); }
 
 private:
     ViewMeta m_meta;
-    std::deque<ViewRow> rows;
-    friend class Internal::ViewIterator;
-    inline const ViewRow* next();
     void handle_row(ViewRow&&);
     void handle_done(ViewMeta&&);
 };

@@ -160,8 +160,8 @@ CallbackViewQuery::~CallbackViewQuery() {
 
 void
 ViewQuery::handle_row(ViewRow&& row) {
-    rows.push_back(row);
-    rows.back().detatch();
+    row.detatch();
+    rp_add(std::move(row));
     cli.breakout();
 }
 
@@ -171,70 +171,9 @@ ViewQuery::handle_done(ViewMeta&& m) {
     cli.breakout();
 }
 
-const ViewRow*
-ViewQuery::next() {
-    GT_RETRY:
-    if (!rows.empty()) {
-        return &rows.front();
-    }
-    if (!active()) {
-        return NULL;
-    }
-    cli.wait();
-    goto GT_RETRY;
-}
-
 Status
 ViewQuery::status() const {
     assert(!active());
     return m_meta.status();
-}
-
-namespace Internal {
-class ViewIterator {
-public:
-    const ViewRow& operator*() const {
-        return *pp;
-    }
-    const ViewRow* operator->() const {
-        return pp;
-    }
-    ViewIterator(const ViewIterator& other) : q(other.q) {
-        pp = other.pp;
-    }
-    ViewIterator& operator=(const ViewIterator& other) {
-        q = other.q;
-        pp = other.pp;
-        return *this;
-    }
-    ViewIterator& operator++() {
-        q->rows.pop_front();
-        pp = q->next(); return *this;
-    }
-    ViewIterator& operator++(int) {
-        return operator ++();
-    }
-    bool operator!=(const ViewIterator& other) const {
-        return pp != other.pp;
-    }
-    bool operator==(const ViewIterator& other) const {
-        return pp == other.pp && q == other.q;
-    }
-private:
-    friend class Couchbase::ViewQuery;
-    ViewQuery* q;
-    const ViewRow *pp;
-    ViewIterator(ViewQuery* query) :q(query), pp(NULL) {}
-    ViewIterator& mkend() { pp = NULL; return *this; }
-    ViewIterator& mkbegin() { pp = q->next(); return *this; }
-};
-} // namespace Internal
-
-ViewQuery::const_iterator ViewQuery::begin() {
-    return const_iterator(this).mkbegin();
-}
-
-ViewQuery::const_iterator ViewQuery::end() {
-    return const_iterator(this).mkend();
 }
 } // namespace Couchbase
