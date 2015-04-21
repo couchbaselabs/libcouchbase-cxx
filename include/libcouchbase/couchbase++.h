@@ -12,6 +12,8 @@
 #include <vector>
 #include <list>
 #include <iostream>
+#include <functional>
+#include <memory>
 #include <libcouchbase/couchbase++/forward.h>
 
 namespace Couchbase {
