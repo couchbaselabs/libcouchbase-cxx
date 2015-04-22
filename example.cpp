@@ -1,5 +1,6 @@
 #include <libcouchbase/couchbase++.h>
 #include <libcouchbase/couchbase++/views.h>
+#include <libcouchbase/couchbase++/query.h>
 #include <libcouchbase/couchbase++/endure.h>
 #include <libcouchbase/couchbase++/logging.h>
 #include <cassert>
@@ -132,5 +133,29 @@ int main(int argc, const char **argv)
         cout << "  Body: " << meta.body() << endl;
     });
     h.wait();
+
+    // Issue the N1QL request:
+    auto m = Query::execute(h, "CREATE PRIMARY INDEX ON `travel-sample`");
+    cout << "Index creation: " << endl
+         << "  Status: " << m.status() << endl
+         << "  Body: " << m.body() << endl;
+
+    // Get the count of airports per country:
+    QueryCommand qcmd(
+        "SELECT t.country, COUNT(t.country)"
+        "FROM `travel-sample` t GROUP BY t.country");
+
+    Query q(h, qcmd, status);
+    if (!status) {
+        cout << "Couldn't issue query: " << status;
+    }
+    for (auto row : q) {
+        cout << "Row: " << row.json() << endl;
+    }
+    if (!q.status()) {
+        cout << "Couldn't execute query: " << q.status() << endl;
+        cout << "Body is: " << q.meta().body() << endl;
+    }
+
     return 0;
 }
