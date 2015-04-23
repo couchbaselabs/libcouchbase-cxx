@@ -167,6 +167,14 @@ public:
     //!          Ensure to comply with these rules if inter-operability with
     //!          them is important.
     void itemflags(uint32_t f) { m_cmd.flags = f; }
+
+    //! Set durability options for the operation.
+    //! @param options the durability options.
+    void durability(const DurabilityOptions *options) { m_dur = options; }
+
+    const DurabilityOptions *durability() const { return m_dur; }
+private:
+    const DurabilityOptions *m_dur = NULL;
 };
 
 typedef StoreCommand<LCB_SET> UpsertCommand;
