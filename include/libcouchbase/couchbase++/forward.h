@@ -17,6 +17,10 @@ namespace Internal {
 }
 
 namespace OpInfo {
+struct Base {
+    typedef lcb_CMDBASE CType;
+    typedef lcb_RESPBASE RType;
+};
 struct Get {
     typedef lcb_CMDGET CType;
     typedef lcb_RESPGET RType;

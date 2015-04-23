@@ -339,9 +339,11 @@ public:
 };
 
 //! @brief Base class for response objects.
-template <typename T=lcb_RESPBASE>
+template <typename T=OpInfo::Base>
 class Response : public Handler {
 public:
+    typedef typename T::RType LcbType;
+
     //! Get status
     //! @return the status of the operation.
     Status status() const { return u.base.rc; }
@@ -366,7 +368,7 @@ public:
 
     //! @private
     virtual void handle_response(Client&, int, const lcb_RESPBASE *res) override {
-        u.resp = *reinterpret_cast<const T*>(res);
+        u.resp = *reinterpret_cast<const LcbType*>(res);
     }
 
     virtual bool done() const override {
@@ -387,7 +389,7 @@ public:
     }
 
 protected:
-    union { lcb_RESPBASE base; T resp; } u;
+    union { lcb_RESPBASE base; LcbType resp; } u;
 private:
     void set_key(const char *key, size_t nkey) {
         u.base.key = key;
@@ -397,16 +399,16 @@ private:
 };
 
 namespace Internal {
-typedef Response<lcb_RESPBASE> BaseResponse;
+typedef Response<OpInfo::Base> BaseResponse;
 }
 
-typedef Response<lcb_RESPSTORE> StoreResponse;
-typedef Response<lcb_RESPREMOVE> RemoveResponse;
-typedef Response<lcb_RESPTOUCH> TouchResponse;
-typedef Response<lcb_RESPUNLOCK> UnlockResponse;
+typedef Response<OpInfo::Store> StoreResponse;
+typedef Response<OpInfo::Remove> RemoveResponse;
+typedef Response<OpInfo::Touch> TouchResponse;
+typedef Response<OpInfo::Unlock> UnlockResponse;
 
 //! @brief Response for @ref GetCommand requests
-class GetResponse : public Response<lcb_RESPGET> {
+class GetResponse : public Response<OpInfo::Get> {
 public:
     inline GetResponse();
     GetResponse(const GetResponse& other) { assign_first(other); }
@@ -451,7 +453,7 @@ private:
     inline char *vbuf_refcnt();
 };
 
-class StatsResponse : public Response<lcb_RESPSTATS> {
+class StatsResponse : public Response<OpInfo::Stats> {
 public:
     StatsResponse() : Response() { }
     void handle_response(Client&, int, const lcb_RESPBASE *resp) override;
@@ -462,7 +464,7 @@ private:
     bool m_done = false;
 };
 
-class CounterResponse : public Response<lcb_RESPCOUNTER> {
+class CounterResponse : public Response<OpInfo::Counter> {
 public:
     void handle_response(Client&, int, const lcb_RESPBASE *res) override {
         u.resp = *(lcb_RESPCOUNTER *)res;
@@ -474,7 +476,7 @@ public:
     uint64_t value() const { return u.resp.value; }
 };
 
-class ObserveResponse : public Response<lcb_RESPOBSERVE> {
+class ObserveResponse : public Response<OpInfo::Observe> {
 public:
     struct ServerReply {
         uint64_t cas = 0;
@@ -495,7 +497,7 @@ private:
 };
 
 //! Response received for durability operations
-class EndureResponse : public Response<lcb_RESPENDURE> {
+class EndureResponse : public Response<OpInfo::Endure> {
 public:
     //! @private
     void handle_response(Client&, int, const lcb_RESPBASE *res) override {
@@ -643,7 +645,7 @@ private:
     Internal::MultiDurContext m_ctx;
     Client& client;
 };
-Z
+
 //! @brief Main client object.
 //! @details
 //! The client object represents a connection to a _bucket_ on the cluster.
