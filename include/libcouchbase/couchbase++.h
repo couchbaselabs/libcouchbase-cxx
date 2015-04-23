@@ -202,21 +202,25 @@ public:
     LCB_CXX_CMD_CTOR(RemoveCommand)
 };
 
+//! Command structure for retrieving statistics from the cluster
 class StatsCommand : public Command<OpInfo::Stats> {
 public:
     LCB_CXX_CMD_CTOR(StatsCommand)
 };
 
+//! Command to update expiration times of items
 class TouchCommand : public Command<OpInfo::Store> {
 public:
     LCB_CXX_CMD_CTOR(TouchCommand)
 };
 
+//! Command to unlock previously locked items
 class UnlockCommand : public Command<OpInfo::Unlock> {
 public:
     LCB_CXX_CMD_CTOR(UnlockCommand)
 };
 
+//! Command to retrieve persistence/replication metadata for an item
 class ObserveCommand : public Command<OpInfo::Observe> {
 public:
     LCB_CXX_CMD_CTOR(ObserveCommand)
@@ -229,6 +233,8 @@ public:
     }
 };
 
+//! Command to ensure persistence/replication of an item to a number of nodes.
+//! @see DurabilityOptions
 class EndureCommand : public Command<OpInfo::Endure> {
 public:
     EndureCommand(const char *key, uint64_t cas) : Command() {
@@ -247,11 +253,21 @@ private:
     const DurabilityOptions *m_options = NULL;
 };
 
+//! Persistence setting
 enum class PersistTo : lcb_U16 {
-    NONE = 0, MASTER = 1, TWO = 2, THREE = 3, FOUR = 4
+    NONE = 0, //!< Dont't wait for persistence
+    MASTER = 1, //!< Only wait for persistence to master node
+    TWO = 2, //!< Wait for persistence to master and one replicas
+    THREE = 3, //!< Wait for persistence to master and two replicas
+    FOUR = 4 //!< Wait for persistence to master and three replicas
 };
+
+//! Replication settings
 enum class ReplicateTo : lcb_U16 {
-    NONE = 0, ONE = 1, TWO = 2, THREE = 3
+    NONE = 0, //!< Don't wait for replication
+    ONE = 1, //!< Wait for replication to one replica
+    TWO = 2, //!< Wait for replication to two replicas
+    THREE = 3 //!< Wait for replication to three replicas
 };
 
 //! Options for durability constraints
@@ -266,8 +282,8 @@ public:
         ReplicateTo n_replicate = ReplicateTo::NONE,
         bool cap_max = true) {
 
-        memset(static_cast<lcb_durability_opts_t*>(this), 0,
-            sizeof (lcb_durability_opts_t));
+        memset(static_cast<lcb_durability_opts_t*>(this),
+            0, sizeof (lcb_durability_opts_t));
 
         persist_to(n_persist);
         replicate_to(n_replicate);
@@ -334,11 +350,13 @@ public:
     Response() {}
     virtual ~Response() {}
 
+    //! @private
     template <class D> static D& setcode(D& r, const Status& c) {
         r.u.base.rc = c;
         return r;
     }
 
+    //! @private
     virtual void handle_response(Client&, int, const lcb_RESPBASE *res) override {
         u.resp = *reinterpret_cast<const T*>(res);
     }
@@ -617,7 +635,7 @@ private:
     Internal::MultiDurContext m_ctx;
     Client& client;
 };
-
+Z
 //! @brief Main client object.
 //! @details
 //! The client object represents a connection to a _bucket_ on the cluster.
