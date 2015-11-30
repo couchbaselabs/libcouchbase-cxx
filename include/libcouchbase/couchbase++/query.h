@@ -66,6 +66,8 @@ public:
 protected:
     Client& cli;
 private:
+    CallbackQuery(const CallbackQuery&) = delete;
+    CallbackQuery& operator=(const CallbackQuery& other) = delete;
     RowCallback rowcb = NULL;
     DoneCallback donecb = NULL;
     bool m_done = false;

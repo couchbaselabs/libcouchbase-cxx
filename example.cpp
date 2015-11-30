@@ -115,7 +115,7 @@ int main(int argc, const char **argv)
 
     cout << "Using async query.." << endl;
     // Async
-    auto asyncQuery = CallbackViewQuery(h, vCmd, status,
+    CallbackViewQuery asyncQuery(h, vCmd, status,
         [](ViewRow&& row, CallbackViewQuery*) {
         cout << "Key: " << row.key() << endl;
         cout << "Value: " << row.value() << endl;

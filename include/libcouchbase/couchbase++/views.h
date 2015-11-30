@@ -180,6 +180,8 @@ public:
 protected:
     Client& cli;
 private:
+    CallbackViewQuery(CallbackViewQuery& other) = delete;
+    CallbackViewQuery& operator=(const CallbackViewQuery& other) = delete;
     RowCallback m_rowcb = NULL;
     DoneCallback m_donecb = NULL;
     lcb_VIEWHANDLE vh = NULL;
