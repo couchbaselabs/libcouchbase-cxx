@@ -342,4 +342,57 @@ GetResponse::value(std::vector<char>& v) const {
     }
 }
 
+// Durability response stuff
+template <typename T> void
+DurableResponse<T>::handle_response(Client& client, int cbtype, const lcb_RESPBASE *rb)
+{
+    if (m_state == STORE) {
+        // Meaning we're in the initial operation phase:
+        m_op.handle_response(client, cbtype, rb);
+        assert(m_op.done());
+        Status status;
+        EndureContext dctx(client, *m_dur, this, status);
+        if (!status) {
+            dur_bail(status);
+            return;
+        }
+        EndureCommand dCmd(static_cast<const char*>(rb->key), rb->nkey, rb->cas);
+        status = dctx.add(dCmd);
+        if (!status) {
+            dur_bail(status);
+            return;
+        }
+        client.enter();
+        status = dctx.submit();
+        if (!status) {
+            client.fail();
+            dur_bail(status);
+            return;
+        }
+        client.leave();
+        m_state = SUBMIT;
+    } else {
+        m_dur.handle_response(client, cbtype, rb);
+    }
+}
+
+template <typename T> bool
+DurableResponse<T>::done() const
+{
+    if (m_state == DONE) {
+        return m_dur.done();
+    } else if (m_state == ERROR) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+template <typename T> void
+DurableResponse<T>::dur_bail(Status& st)
+{
+    EndureResponse::setcode(m_dur, st);
+    m_state = ERROR;
+}
+
 } // namespace Couchbase

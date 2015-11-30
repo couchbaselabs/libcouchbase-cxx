@@ -167,14 +167,6 @@ public:
     //!          Ensure to comply with these rules if inter-operability with
     //!          them is important.
     void itemflags(uint32_t f) { m_cmd.flags = f; }
-
-    //! Set durability options for the operation.
-    //! @param options the durability options.
-    void durability(const DurabilityOptions *options) { m_dur = options; }
-
-    const DurabilityOptions *durability() const { return m_dur; }
-private:
-    const DurabilityOptions *m_dur = NULL;
 };
 
 typedef StoreCommand<LCB_SET> UpsertCommand;
@@ -527,6 +519,23 @@ public:
     size_t replicate() const { return u.resp.nreplicated; }
 };
 
+//! Response object wrapping a durable operation.
+template<typename T>
+class DurableResponse : public Handler {
+public:
+    inline void handle_response(Client&, int, const lcb_RESPBASE*) override;
+    inline bool done() const override;
+    DurableResponse(const DurabilityOptions *options) : m_duropt(options){}
+private:
+    inline void dur_bail(Status&);
+    const DurabilityOptions *m_duropt;
+    T m_op;
+    EndureResponse m_dur;
+
+    enum State { STORE = 0, SUBMIT, DONE, ERROR };
+    State m_state = STORE;
+};
+
 namespace Internal {
 template <typename T>
 class MultiContextT {
@@ -669,6 +678,7 @@ public:
     }
 
     template <lcb_storage_t T> inline StoreResponse store(const StoreCommand<T>&);
+
     template <typename ...Params> StoreResponse upsert(Params... params) {
         return store(UpsertCommand(params...));
     }
