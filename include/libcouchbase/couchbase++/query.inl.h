@@ -6,15 +6,16 @@ QueryCommand::QueryCommand(const std::string& stmt) {
         LCB_N1P_QUERY_STATEMENT);
 }
 
+QueryCommand::QueryCommand(QueryCommand&& other) {
+    m_adhoc = other.m_adhoc;
+    m_params = other.m_params;
+    other.m_params = NULL;
+}
+
 QueryCommand::~QueryCommand() {
     if (m_params != NULL) {
         lcb_n1p_free(m_params);
     }
-}
-
-void
-QueryCommand::clear() {
-    lcb_n1p_reset(m_params);
 }
 
 Status
@@ -82,14 +83,17 @@ static void n1qlcb(lcb_t, int, const lcb_RESPN1QL *resp) {
 
 CallbackQuery::CallbackQuery(Client& client, QueryCommand& cmd, Status &status,
     RowCallback rowcb, DoneCallback donecb)
-: cli(client), rowcb(rowcb), donecb(donecb) {
+: m_cli(client), m_rowcb(rowcb), m_donecb(donecb) {
 
     lcb_CMDN1QL c_cmd = { 0 };
     c_cmd.callback = Internal::n1qlcb;
+    if (!cmd.m_adhoc) {
+        c_cmd.cmdflags |= LCB_CMDN1QL_F_PREPCACHE;
+    }
 
     status = lcb_n1p_mkcmd(cmd.m_params, &c_cmd);
     if (status) {
-        status = lcb_n1ql_query(cli.handle(), this, &c_cmd);
+        status = lcb_n1ql_query(m_cli.handle(), this, &c_cmd);
     }
 }
 
@@ -98,9 +102,9 @@ CallbackQuery::_dispatch(const lcb_RESPN1QL *resp) {
     if (resp->rflags & LCB_RESP_F_FINAL) {
         // Handle last response..
         m_done = true;
-        donecb(QueryMeta(resp), this);
+        m_donecb(QueryMeta(resp), this);
     } else {
-        rowcb(QueryRow(resp), this);
+        m_rowcb(QueryRow(resp), this);
     }
 }
 
@@ -109,11 +113,11 @@ Query::Query(Client& cli, QueryCommand& cmd, Status& st)
     [this](QueryRow&& row, CallbackQuery*){
         row.detatch();
         rp_add(std::move(row));
-        this->cli.breakout();
+        this->m_cli.breakout();
     },
     [this](QueryMeta&& meta, CallbackQuery*){
         m_meta = std::move(meta);
-        this->cli.breakout();
+        this->m_cli.breakout();
     })
 {
 }

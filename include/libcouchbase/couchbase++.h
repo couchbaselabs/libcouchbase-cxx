@@ -38,6 +38,18 @@ public:
     operator std::string() const {
         return to_string();
     }
+
+    typedef const char* const_iterator;
+
+    const_iterator begin() const {
+        return reinterpret_cast<const char*>(m_data);
+    }
+
+    const_iterator end() const {
+        return m_length == 0 ?
+                begin() : reinterpret_cast<const char*>(m_data) + m_length;
+    }
+
 private:
     const void *m_data = NULL;
     size_t m_length = 0;
