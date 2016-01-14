@@ -351,7 +351,7 @@ DurableResponse<T>::handle_response(Client& client, int cbtype, const lcb_RESPBA
         m_op.handle_response(client, cbtype, rb);
         assert(m_op.done());
         Status status;
-        EndureContext dctx(client, *m_dur, this, status);
+        EndureContext dctx(client, m_dur, this, status);
         if (!status) {
             dur_bail(status);
             return;
