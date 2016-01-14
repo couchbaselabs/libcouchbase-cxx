@@ -79,6 +79,13 @@ int main(int argc, const char **argv)
     h.remove("bar");
     h.remove("baz");
 
+    Couchbase::Client h1{"couchbase://localhost/beer-sample"};
+    Status rv1 = h1.connect();
+    if (!rv1.success()) {
+        cout << "Couldn't connect to '" << connstr << "'. "
+                << "Reason: " << rv1 << endl;
+        exit(EXIT_FAILURE);
+    }
     Status status;
     ViewCommand vCmd("beer", "brewery_beers");
     vCmd.include_docs();
@@ -89,7 +96,7 @@ int main(int argc, const char **argv)
 
     cout << "using options: " << vCmd.get_options() << endl;
 
-    ViewQuery query(h, vCmd, status);
+    ViewQuery query(h1, vCmd, status);
     if (!status) {
         cerr << "Error with view command: " << status << endl;
     }
@@ -115,7 +122,7 @@ int main(int argc, const char **argv)
 
     cout << "Using async query.." << endl;
     // Async
-    CallbackViewQuery asyncQuery(h, vCmd, status,
+    CallbackViewQuery asyncQuery(h1, vCmd, status,
         [](ViewRow&& row, CallbackViewQuery*) {
         cout << "Key: " << row.key() << endl;
         cout << "Value: " << row.value() << endl;
