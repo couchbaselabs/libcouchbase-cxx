@@ -74,7 +74,7 @@ BatchCommand<C,R>::add(const C& cmd) {
 // Callback stuff
 template <typename C, typename R>
 CallbackCommand<C,R>::CallbackCommand(Client& c, CallbackType& cb)
-: m_ctx(c), m_callback(cb) {
+: m_callback(cb), m_ctx(c) {
 }
 
 template <typename C, typename R> Status

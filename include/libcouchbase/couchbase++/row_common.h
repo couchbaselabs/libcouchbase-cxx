@@ -53,7 +53,7 @@ public:
         return pp;
     }
 
-    RowIterator(const RowIterator& other) : rp(other.rp), pp(other.pp) {
+    RowIterator(const RowIterator& other) : pp(other.pp), rp(other.rp) {
     }
 
     RowIterator& operator=(const RowIterator& other) {
