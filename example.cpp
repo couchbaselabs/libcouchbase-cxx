@@ -23,8 +23,7 @@ int main(int argc, const char **argv)
     Couchbase::Client h(connstr);
     Status rv = h.connect();
     if (!rv.success()) {
-        cout << "Couldn't connect to '" << connstr << "'. "
-                << "Reason: " << rv << endl;
+        cout << "Couldn't connect to '" << connstr << "'. " << "Reason: " << rv << endl;
         exit(EXIT_FAILURE);
     }
 
@@ -79,11 +78,11 @@ int main(int argc, const char **argv)
     h.remove("bar");
     h.remove("baz");
 
-    Couchbase::Client h1{"couchbase://localhost/beer-sample"};
+    string connstr2(argc > 2 ? argv[2] : "couchbase://localhost/beer-sample");
+    Couchbase::Client h1{connstr2};
     Status rv1 = h1.connect();
     if (!rv1.success()) {
-        cout << "Couldn't connect to '" << connstr << "'. "
-                << "Reason: " << rv1 << endl;
+        cout << "Couldn't connect to '" << connstr2 << "'. " << "Reason: " << rv1 << endl;
         exit(EXIT_FAILURE);
     }
     Status status;
