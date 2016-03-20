@@ -18,14 +18,24 @@ using namespace Couchbase;
 
 int main(int argc, const char **argv)
 {
+    string hostPort("localhost");
+    if (argc > 1) {
+        hostPort = argv[1];      
+    }
+    string protocol("couchbase");
+    if (argc > 2) {
+        protocol = argv[2];
+    }
     //! Connect to the client
-    string connstr(argc > 1 ? argv[1] : "couchbase://localhost/default");
+    string connstr(protocol + "://" + hostPort + "/default");
     Couchbase::Client h(connstr);
     Status rv = h.connect();
     if (!rv.success()) {
         cout << "Couldn't connect to '" << connstr << "'. "
                 << "Reason: " << rv << endl;
         exit(EXIT_FAILURE);
+    } else {
+        cout << "Connected to " << connstr << endl;        
     }
 
 
@@ -78,13 +88,15 @@ int main(int argc, const char **argv)
     h.remove("foo");
     h.remove("bar");
     h.remove("baz");
-
-    Couchbase::Client h1{"couchbase://localhost/beer-sample"};
+    connstr = protocol + "://" + hostPort + "/beer-sample";
+    Couchbase::Client h1{connstr};
     Status rv1 = h1.connect();
     if (!rv1.success()) {
         cout << "Couldn't connect to '" << connstr << "'. "
                 << "Reason: " << rv1 << endl;
         exit(EXIT_FAILURE);
+    } else {
+        cout << "Connected to " << connstr << endl;        
     }
     Status status;
     ViewCommand vCmd("beer", "brewery_beers");
