@@ -15,3 +15,6 @@ ENDIF()
 
 ADD_EXECUTABLE(example ${PROJECT_SOURCE_DIR}/example.cpp)
 TARGET_LINK_LIBRARIES(example couchbase)
+
+ENABLE_TESTING()
+ADD_SUBDIRECTORY(tests)
