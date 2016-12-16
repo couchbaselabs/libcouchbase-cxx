@@ -17,7 +17,7 @@ namespace Internal {
 extern "C" { static void viewcb(lcb_t,int,const lcb_RESPVIEWQUERY*); }
 }
 
-enum class StaleMode { OK, FALSE, UPDATE_AFTER };
+enum class StaleMode { STALE_OK, STALE_FALSE, STALE_UPDATE_AFTER };
 
 // View API
 class ViewCommand : private lcb_CMDVIEWQUERY {

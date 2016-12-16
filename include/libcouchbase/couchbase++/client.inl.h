@@ -346,7 +346,7 @@ GetResponse::value(std::vector<char>& v) const {
 template <typename T> void
 DurableResponse<T>::handle_response(Client& client, int cbtype, const lcb_RESPBASE *rb)
 {
-    if (m_state == STORE) {
+    if (m_state == State::STORE) {
         // Meaning we're in the initial operation phase:
         m_op.handle_response(client, cbtype, rb);
         assert(m_op.done());
@@ -370,7 +370,7 @@ DurableResponse<T>::handle_response(Client& client, int cbtype, const lcb_RESPBA
             return;
         }
         client.leave();
-        m_state = SUBMIT;
+        m_state = State::SUBMIT;
     } else {
         m_dur.handle_response(client, cbtype, rb);
     }
@@ -379,9 +379,9 @@ DurableResponse<T>::handle_response(Client& client, int cbtype, const lcb_RESPBA
 template <typename T> bool
 DurableResponse<T>::done() const
 {
-    if (m_state == DONE) {
+    if (m_state == State::DONE) {
         return m_dur.done();
-    } else if (m_state == ERROR) {
+    } else if (m_state == State::STATE_ERROR) {
         return true;
     } else {
         return false;
