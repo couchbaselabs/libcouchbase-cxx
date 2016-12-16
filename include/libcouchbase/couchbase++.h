@@ -544,8 +544,8 @@ private:
     T m_op;
     EndureResponse m_dur;
 
-    enum State { STORE = 0, SUBMIT, DONE, ERROR };
-    State m_state = STORE;
+    enum class State { STORE = 0, SUBMIT, DONE, STATE_ERROR };
+    State m_state = State::STORE;
 };
 
 namespace Internal {
