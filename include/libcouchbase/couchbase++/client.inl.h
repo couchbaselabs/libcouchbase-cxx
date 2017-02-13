@@ -392,7 +392,7 @@ template <typename T> void
 DurableResponse<T>::dur_bail(Status& st)
 {
     EndureResponse::setcode(m_dur, st);
-    m_state = ERROR;
+    m_state = State::STATE_ERROR;
 }
 
 } // namespace Couchbase
