@@ -238,9 +238,9 @@ public:
     LCB_CXX_CMD_CTOR(ObserveCommand)
     void master_only(bool val=true) {
         if (val) {
-            m_cmd.cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY;
+            m_cmd.cmdflags |= static_cast<uint32_t>(LCB_CMDOBSERVE_F_MASTER_ONLY);
         } else {
-            m_cmd.cmdflags &= ~LCB_CMDOBSERVE_F_MASTER_ONLY;
+            m_cmd.cmdflags &= ~static_cast<uint32_t>(LCB_CMDOBSERVE_F_MASTER_ONLY);
         }
     }
 };

@@ -173,7 +173,7 @@ Client::mctx_endure(const DurabilityOptions& opts,
     lcb_MULTICMD_CTX *mctx = lcb_endure3_ctxnew(m_instance, &opts, &rv);
     if (mctx == NULL) {
     } else {
-        out = std::move(Internal::MultiDurContext(mctx, handler, this));
+        out = Internal::MultiDurContext(mctx, handler, this);
     }
     return rv;
 }
@@ -181,7 +181,7 @@ Client::mctx_endure(const DurabilityOptions& opts,
 Status
 Client::mctx_observe(Handler *handler, Internal::MultiObsContext& out) {
     lcb_MULTICMD_CTX *mctx = lcb_observe3_ctxnew(m_instance);
-    out = std::move(Internal::MultiObsContext(mctx, handler, this));
+    out = Internal::MultiObsContext(mctx, handler, this);
     return Status();
 }
 
