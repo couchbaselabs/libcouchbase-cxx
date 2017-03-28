@@ -111,7 +111,7 @@ protected:
 };
 
 #define LCB_CXX_DECLSCHED(cmdname, schedname) \
-template<> Command<cmdname>::Scheduler \
+template<> inline Command<cmdname>::Scheduler \
 Command<cmdname>::scheduler() const { return schedname; }
 
 LCB_CXX_DECLSCHED(OpInfo::Get, lcb_get3)
@@ -421,7 +421,7 @@ public:
     ~GetResponse() { clear(); }
 
     //! @brief Release memory used by the response value
-    void clear();
+    inline void clear();
 
     //! Get the value for the item
     //! @return a buffer holding the value of the buffer. This buffer is valid
@@ -445,12 +445,12 @@ public:
     uint32_t itemflags() const { return valueflags(); }
 
     //! @private
-    void handle_response(Client&, int, const lcb_RESPBASE *) override;
+    inline void handle_response(Client&, int, const lcb_RESPBASE *) override;
 
 private:
     friend class Client;
     friend class ViewRow;
-    void assign_first(const GetResponse& other);
+    inline void assign_first(const GetResponse& other);
 
     inline bool has_shared_buffer() const;
     inline bool has_alloc_buffer() const;
@@ -460,7 +460,7 @@ private:
 class StatsResponse : public Response<OpInfo::Stats> {
 public:
     StatsResponse() : Response() { }
-    void handle_response(Client&, int, const lcb_RESPBASE *resp) override;
+    inline void handle_response(Client&, int, const lcb_RESPBASE *resp) override;
     bool done() const override { return m_done; }
     std::map<std::string,std::map<std::string,std::string> > stats;
 private:

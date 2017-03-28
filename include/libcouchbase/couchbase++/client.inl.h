@@ -204,7 +204,7 @@ GetResponse::handle_response(Client&, int, const lcb_RESPBASE *resp)
     }
 }
 
-void
+inline void
 GetResponse::clear()
 {
     if (has_shared_buffer()) {
