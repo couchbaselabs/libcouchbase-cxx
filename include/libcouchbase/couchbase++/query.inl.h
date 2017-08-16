@@ -65,7 +65,7 @@ void
 QueryRow::detatch() {
     if (m_buf == NULL && !m_row.empty()) {
         char *tmp = new char[m_row.size()];
-        m_buf.reset(tmp);
+        m_buf.reset(tmp, std::default_delete<char[]>());
         memcpy(tmp, m_row.data(), m_row.size());
         m_row = Buffer(tmp, m_row.size());
     }
