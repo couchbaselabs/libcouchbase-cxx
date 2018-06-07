@@ -25,7 +25,7 @@ Client::_dispatch(int cbtype, const lcb_RESPBASE *r)
     }
 }
 
-Client::Client(const std::string& connstr, const std::string& passwd)
+Client::Client(const std::string& connstr, const std::string& passwd, const std::string& username)
 : remaining(0), m_duropts(PersistTo::NONE, ReplicateTo::NONE)
 {
     lcb_create_st cropts;
@@ -33,6 +33,9 @@ Client::Client(const std::string& connstr, const std::string& passwd)
     cropts.v.v3.connstr = connstr.c_str();
     if (!passwd.empty()) {
         cropts.v.v3.passwd = passwd.c_str();
+    }
+    if (!username.empty()) {
+        cropts.v.v3.username = username.c_str();
     }
     Status rv = lcb_create(&m_instance, &cropts);
     if (rv != LCB_SUCCESS) {
