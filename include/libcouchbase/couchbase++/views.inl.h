@@ -92,7 +92,7 @@ ViewRow::detatch() {
     size_t total_alloc = m_key.length() + m_value.length() +
             m_docid.length() + m_geometry.length();
     char *tmp = new char[total_alloc];
-    m_buf.reset(tmp);
+    m_buf.reset(tmp, std::default_delete<char[]>());
 
     tmp = detatch_buf(m_key, tmp);
     tmp = detatch_buf(m_value, tmp);
