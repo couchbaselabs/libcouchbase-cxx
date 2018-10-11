@@ -1,3 +1,5 @@
+#include <libcouchbase/couchbase++.h>
+
 #ifndef LCB_PLUSPLUS_H
 #error "include <libcouchbase/couchbase++.h> first"
 #endif
@@ -79,6 +81,8 @@ Client::schedule(const Command<T>& command, Handler *handler) {
 template <typename T, typename R> Status
 Client::run(const Command<T>& command, Response<R>& response) {
     enter();
+
+    printf("I'm scheduling\n");
     Status s = schedule(command, &response);
     if (!s) {
         fail();
@@ -86,7 +90,6 @@ Client::run(const Command<T>& command, Response<R>& response) {
         leave();
         wait();
     }
-
     response.set_key(command.keybuf(), command.keylen());
     return s;
 }
@@ -94,6 +97,8 @@ Client::run(const Command<T>& command, Response<R>& response) {
 GetResponse
 Client::get(const GetCommand& cmd) {
     GetResponse resp;
+    printf("I'm in ur GetCommand get\n");
+
     run(cmd, resp);
     return resp;
 }

@@ -685,14 +685,33 @@ public:
 
     inline GetResponse get(const GetCommand&);
     template <typename ...Params> GetResponse get(Params... params) {
+        printf("I'm in ur generic get\n");
         return get(GetCommand(params...));
 
     }
 
+    std::string get_as_string(const char* key)
+    {
+        GetCommand comm=GetCommand(key);
+        try {
+            auto result=get(comm);
+            return std::string(result.valuebuf(),result.valuesize());
+        }
+        catch (std::exception e){
+            printf("%s",e.what());
+        }
+
+    }
+
+
     template <lcb_storage_t T> inline StoreResponse store(const StoreCommand<T>&);
 
-    template <typename ...Params> StoreResponse upsert(Params... params) {
+    template <typename ...Params> StoreResponse upsert_generic(Params... params) {
         return store(UpsertCommand(params...));
+    }
+
+    StoreResponse upsert(const std::string& key, const std::string& value){
+        return upsert_generic(key,value);
     }
     template <typename ...Params> StoreResponse insert(Params... params) {
         return store(InsertCommand(params...));
