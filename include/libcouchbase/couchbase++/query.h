@@ -1,4 +1,13 @@
+#ifndef LCB_PLUSPLUS_H
+#error "Include <libcouchbase/couchbase++.h> first!"
+#endif
+
+#ifndef LCB_PLUSPLUS_QUERY_H
+#define LCB_PLUSPLUS_QUERY_H
+
 #include <libcouchbase/n1ql.h>
+#include "row_common.h"
+
 namespace Couchbase {
 namespace Internal {
 extern "C" { static void n1qlcb(lcb_t,int,const lcb_RESPN1QL*); }
@@ -74,7 +83,7 @@ public:
 private:
     friend class CallbackQuery;
     friend class Query;
-    QueryRow(const lcb_RESPN1QL *);
+    inline QueryRow(const lcb_RESPN1QL *);
     Buffer m_row;
     std::shared_ptr<char> m_buf;
 };
@@ -208,3 +217,5 @@ private:
 }
 
 #include <libcouchbase/couchbase++/query.inl.h>
+
+#endif
