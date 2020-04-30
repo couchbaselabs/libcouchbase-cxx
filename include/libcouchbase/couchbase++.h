@@ -119,6 +119,7 @@ LCB_CXX_DECLSCHED(OpInfo::Store, lcb_store3)
 LCB_CXX_DECLSCHED(OpInfo::Touch, lcb_touch3)
 LCB_CXX_DECLSCHED(OpInfo::Remove, lcb_remove3)
 LCB_CXX_DECLSCHED(OpInfo::Stats, lcb_stats3)
+LCB_CXX_DECLSCHED(OpInfo::Ping, lcb_ping3)
 LCB_CXX_DECLSCHED(OpInfo::Unlock, lcb_unlock3)
 LCB_CXX_DECLSCHED(OpInfo::Counter, lcb_counter3)
 
@@ -218,6 +219,53 @@ public:
 class StatsCommand : public Command<OpInfo::Stats> {
 public:
     LCB_CXX_CMD_CTOR(StatsCommand)
+};
+
+//! Command structure for retrieving ping
+class PingCommand : public Command<OpInfo::Ping> {
+public:
+    enum class Service {
+        KeyValue,
+        N1QL,
+        MapReduce,
+        FullTextSearch,
+        N1QLAnalytics,
+    };
+
+    enum class Option {
+        NoMetrics,
+        JSON,
+        JSONDetails,
+        JSONPretty,
+    };
+
+    PingCommand(const std::vector<Service> &services,
+                const std::vector<Option> &options,
+                const char *id = nullptr) : Command()
+    {
+        std::map<Service, int> service_map {
+            {Service::KeyValue, LCB_PINGSVC_F_KV},
+            {Service::N1QL, LCB_PINGSVC_F_N1QL},
+            {Service::MapReduce, LCB_PINGSVC_F_VIEWS},
+            {Service::FullTextSearch, LCB_PINGSVC_F_FTS},
+            {Service::N1QLAnalytics, LCB_PINGSVC_F_ANALYTICS},
+        };
+        for (auto &s : services) {
+            m_cmd.services |= service_map.at(s);
+        }
+
+        std::map<Option, int> option_map {
+            {Option::NoMetrics, LCB_PINGOPT_F_NOMETRICS},
+            {Option::JSON, LCB_PINGOPT_F_JSON},
+            {Option::JSONDetails, LCB_PINGOPT_F_JSONDETAILS},
+            {Option::JSONPretty, LCB_PINGOPT_F_JSONPRETTY},
+        };
+        for (auto &s : options) {
+            m_cmd.options |= option_map.at(s);
+        }
+
+        m_cmd.id = id;
+    }
 };
 
 //! Command to update expiration times of items
@@ -468,6 +516,60 @@ private:
     bool m_done = false;
 };
 
+class PingResponse : public Response<OpInfo::Ping> {
+public:
+    struct Service {
+        lcb_PINGSVCTYPE type;
+        std::string server;
+        lcb_U64 latency;
+        std::string local;
+        std::string id;
+        std::string scope;
+        lcb_PINGSTATUS status;
+    };
+
+
+private:
+    std::vector<Service> services_ = {};
+    std::string json_ = "";
+
+public:
+    PingResponse() = default;
+
+    std::vector<Service> services() { return services_; }
+
+    std::string json() { return json_; }
+
+    void handle_response(Client &, int, const lcb_RESPBASE *res) override{
+        u.resp = *reinterpret_cast<const LcbType*>(res);
+
+        services_.reserve(u.resp.nservices);
+        for (lcb_SIZE i = 0; i < u.resp.nservices; ++i) {
+            auto resp_srv = u.resp.services[i];
+            auto srv = Service{resp_srv.type,
+                               resp_srv.server,
+                               resp_srv.latency,
+                               resp_srv.local,
+                               resp_srv.id,
+                               (resp_srv.scope ? resp_srv.scope : ""),
+                               resp_srv.status};
+            services_.emplace_back(srv);
+        }
+
+        if (u.resp.njson) {
+            json_ = u.resp.json;
+        }
+    }
+
+    bool statusOK() {
+        bool ok = true;
+        for (auto &service : services()) {
+            ok = ok && service.status == LCB_PINGSTATUS_OK;
+        }
+        return ok;
+    }
+};
+
 class CounterResponse : public Response<OpInfo::Counter> {
 public:
     void handle_response(Client&, int, const lcb_RESPBASE *res) override {
@@ -710,6 +812,7 @@ public:
 
     inline CounterResponse counter(const CounterCommand&);
     inline StatsResponse stats(const std::string& key);
+    inline PingResponse ping(const PingCommand &cmd);
     inline UnlockResponse unlock(const UnlockCommand& cmd);
 
     inline EndureResponse endure(const EndureCommand& cmd, const DurabilityOptions* options = NULL);
