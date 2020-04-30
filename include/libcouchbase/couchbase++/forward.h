@@ -49,6 +49,10 @@ struct Stats {
     typedef lcb_CMDSTATS CType;
     typedef lcb_RESPSTATS RType;
 };
+struct Ping {
+    typedef lcb_CMDPING CType;
+    typedef lcb_RESPPING RType;
+};
 struct Observe {
     typedef lcb_CMDOBSERVE CType;
     typedef lcb_RESPOBSERVE RType;
